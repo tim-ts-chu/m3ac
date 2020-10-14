@@ -1,4 +1,3 @@
-
 from agent.imagine_agent import ImagineAgent
 from agent.discriminate_agent import DiscriminateAgent
 from agent.policy_agent import PolicyAgent
@@ -20,18 +19,16 @@ class M3ACAlgorithm:
             real_buffer: ReplayBuffer,
             imaginary_buffer: ReplayBuffer):
 
-        # push real_samples into real buffer
-
         # draw sample from real buffer
         real_samples = real_buffer.sample(self._batch_size)
-        for k in BufferFields.keys():
-            print(real_samples[k].shape)
+        #for k in BufferFields.keys():
+        #    print(real_samples[k].shape)
 
         # optimize imagine_agent
-        imagine_agent.optimize_agent(real_samples)
-
+        post = imagine_agent.optimize_agent(real_samples)
 
         # imagine samples using imagine_agent
+        imaginary_samples = imagine_agent.imagine(post, policy_agent)
 
         # discriminate imag_samples using discriminate_agent
 

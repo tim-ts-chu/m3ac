@@ -10,6 +10,8 @@ from agent.models.dense import DenseModel
 
 from replay.replay import BufferFields
 
+from rlpyt.utils.buffer import buffer_to, buffer_method
+
 def get_parameters(modules: Iterable[Module]):                                                                
     """                                          
     Given a list of torch modules, returns a list of their parameters.    
@@ -63,6 +65,7 @@ class ImagineAgent:
         self._free_nats = 3 # FIXME not sure what is this
         self._kl_scale = 1
         self._grad_clip = 100.0
+        self._horizon = 15
 
         feature_size = self._stochastic_size + self._deterministic_size
 
@@ -87,13 +90,12 @@ class ImagineAgent:
         #self.value_optimizer = torch.optim.Adam(get_parameters(self.value_modules), lr=self.value_lr,
         #                                        **self.optim_kwargs)
 
-
     def optimize_agent(self, real_samples):
         '''
         Optimize model
         '''
 
-        model_loss, value_loss = self._loss(real_samples)
+        model_loss, post = self._loss(real_samples)
 
         print('model_loss:', model_loss)
 
@@ -109,9 +111,38 @@ class ImagineAgent:
         self.model_optimizer.step()
         #self.value_optimizer.step()
 
+        return post
 
-    def imagine(self):
-        pass
+    def imagine(self, real_samples, post, policy_agent):
+
+        batch_time, batch_size, _ = real_samples['state'].shape
+        flat_post = buffer_method(post, 'reshape', batch_time*batch_size, -1)
+
+        # Rollout the policy for self.horizon steps. Variable names with imag_ indicate this data is imagined not real.
+        # imag_feat shape is [horizon, batch_t * batch_b, feature_size]
+        with FreezeParameters(self.model_modules):
+            imag_dist, actions = self.rollout.rollout_policy(self._horizon, policy_agent, flat_post)
+
+        # Use state features (deterministic and stochastic) to predict the image and reward
+        imag_feat = get_feat(imag_dist)  # [horizon, batch_t * batch_b, feature_size]
+        # Assumes these are normal distributions. In the TF code it's be mode, but for a normal distribution mean = mode
+        # If we want to use other distributions we'll have to fix this.
+        # We calculate the target here so no grad necessary
+
+        # freeze model parameters as only action model gradients needed
+        with FreezeParameters(self.model_modules):
+            imag_reward = self.reward_model(imag_feat).mean
+
+        imag_pred = self.observation_decoder(imag_feat) # Gaussian Distribution
+
+        # construct imag samples
+        imaginary_samples = {}
+        imaginary_samples['state'] = imag_pred.rsample()
+        imaginary_samples['action'] = actions
+        imaginary_samples['reward'] = imag_reward
+        imaginary_samples['done'] = torch.full((self._horizon, batch_time*batch_size, 1), False, dtype=torch.bool) # assume imag samples never done?
+
+        return imaginary_samples
 
     def _loss(self, real_samples):
 
@@ -144,5 +175,6 @@ class ImagineAgent:
 
         # Value Loss ?
         value_loss = None
-        return model_loss, value_loss
+
+        return model_loss, post
 

@@ -178,7 +178,7 @@ class RSSMRollout(RollOutModule):
             priors.append(state)
         return stack_states(priors, dim=0)
 
-    def rollout_policy(self, steps: int, policy, prev_state: RSSMState):
+    def rollout_policy(self, steps: int, policy_agent, prev_state: RSSMState):
         """
         Roll out the model with a policy function.
         :param steps: number of steps to roll out
@@ -192,7 +192,8 @@ class RSSMRollout(RollOutModule):
         actions = []
         state = buffer_method(state, 'detach')
         for t in range(steps):
-            action, _ = policy(buffer_method(state, 'detach'))
+            #action, _ = policy_agent(buffer_method(state, 'detach'))
+            _, _, action, _ = policy_agent(get_feat(buffer_method(state, 'detach')))
             state = self.transition_model(action, state)
             next_states.append(state)
             actions.append(action)
