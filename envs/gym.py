@@ -15,13 +15,18 @@ class GymEnv:
     def observation_space(self):
         return self._env.observation_space
 
-    def step(self, action: torch.Tensor):
-        o, r, d, info = self._env.step(action.numpy())
-        return torch.from_numpy(o), torch.tensor(r), torch.tensor(d), info
+    def step(self, action: torch.Tensor, run_for_n_step = 1):
+        r_sum = 0
+        for i in range(run_for_n_step):
+            o, r, d, info = self._env.step(action.numpy())
+            r_sum += r
+            if d:
+                break
+        return torch.from_numpy(o).to(torch.float32).view(1, -1), torch.tensor(r_sum).to(torch.float32), torch.tensor(d), info
 
     def reset(self):
         o = self._env.reset()
-        return torch.from_numpy(o)
+        return torch.from_numpy(o).to(torch.float32).view(1, -1)
 
     def render(self, step_reward=None, cumulative_reward=None):
         return self._env.render('rgb_array') # (500, 500, 3)

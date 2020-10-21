@@ -7,6 +7,7 @@ BufferFields = {
         'action': 8,
         'reward': 1,
         'done': 1,
+        'next_state': 111,
         }
 
 class ReplayBuffer:
@@ -51,6 +52,33 @@ class ReplayBuffer:
 
         if self._curr_size < self._buffer_size:
             self._curr_size += 1
+
+    def push_batch(self, **kwargs) -> None:
+        '''
+        Push batch data record into replay buffer
+        '''
+        if kwargs.keys() != BufferFields.keys():
+            raise RuntimeError(f'push data into an unexisting field: {kwargs.keys()}!={BufferFields.keys()}')
+        
+        batch_size, _ = kwargs[list(BufferFields.keys())[0]].shape
+
+        if self._buffer_size - self._write_idx >= batch_size:
+            # no need to circling 
+            for field in BufferFields.keys():
+                self._buffer[field][self._write_idx:self._write_idx+batch_size, :] = kwargs[field]
+
+            self._write_idx += batch_size 
+            if self._curr_size < self._buffer_size:
+                self._curr_size += batch_size
+        else:
+            # need circling
+            remain_idx = self._write_idx + batch_size - self._buffer_size
+            for field in BufferFields.keys():
+                self._buffer[field][self._write_idx:, :] = kwargs[field][:-remain_idx,:]
+                self._buffer[field][:remain_idx, :] = kwargs[field][-remain_idx:,:]
+
+            self._write_idx = remain_idx
+            self._curr_size = self._buffer_size
 
     def sample(self, batch_size: int) -> torch.Tensor:
         '''

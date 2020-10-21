@@ -12,7 +12,8 @@ class MLP(torch.nn.Module):
         input_size: int,
         hidden_sizes: List,
         output_size: int,
-        activation: torch.nn.Module=torch.nn.ReLU):
+        activation: torch.nn.Module=torch.nn.ReLU,
+        output_layer=None):
         super().__init__()
 
         layers_dim = [input_size] + hidden_sizes
@@ -21,6 +22,8 @@ class MLP(torch.nn.Module):
             layers.append(torch.nn.Linear(layers_dim[i], layers_dim[i+1]))
             layers.append(activation())
         layers.append(torch.nn.Linear(layers_dim[-1], output_size))
+        if output_layer:
+            layers.append(output_layer)
         self._model = torch.nn.Sequential(*layers)
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:

@@ -2,7 +2,7 @@
 import sys
 sys.path.insert(0,'..')
 import torch
-from replay import ReplayBuffer, BufferFields
+from replay.replay import ReplayBuffer, BufferFields
 import unittest
 
 class TestReplayBuffer(unittest.TestCase):
@@ -72,6 +72,36 @@ class TestReplayBuffer(unittest.TestCase):
                 testing_data = self._testing_data[data_idx][key]
                 self.assertTrue(torch.equal(buffer_data, testing_data))
 
+    def test_push_batch(self):
+        sample = {}
+        batch_size = 60
+        for k, dim in BufferFields.items():
+            sample[k] = torch.rand((batch_size, dim))
+
+        replay_buffer = ReplayBuffer(self._small_buffer_size)
+
+        replay_buffer.push_batch(**sample)
+        for i in range(batch_size):
+            for key in BufferFields.keys():
+                buffer_data = replay_buffer._buffer[key][i,:]#.view(1, -1)
+                self.assertTrue(torch.equal(buffer_data, sample[key][i,:]))
+
+    def test_push_batch_circling(self):
+        sample = {}
+        batch_size = 77 
+        for k, dim in BufferFields.items():
+            sample[k] = torch.rand((batch_size, dim))
+
+        replay_buffer = ReplayBuffer(self._small_buffer_size)
+        replay_buffer.push_batch(**sample)
+        replay_buffer.push_batch(**sample)
+        for i in range(54):
+            for key in BufferFields.keys():
+                buffer_data = replay_buffer._buffer[key][i,:]#.view(1, -1)
+                self.assertTrue(torch.equal(buffer_data, sample[key][23+i,:]))
+
+        self.assertEqual(replay_buffer._curr_size, self._small_buffer_size)
+        self.assertEqual(replay_buffer._write_idx, 54)
 
 if __name__ == '__main__':
     unittest.main()

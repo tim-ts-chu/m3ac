@@ -2,7 +2,7 @@
 import torch
 import numpy as np
 from typing import Dict, Tuple
-from replay import BufferFields
+from replay.replay import BufferFields
 from agent.sac_agent import SACAgent, Gaussian
 
 class SACAlgorithm:

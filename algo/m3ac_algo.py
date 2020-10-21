@@ -3,7 +3,11 @@ from agent.discriminate_agent import DiscriminateAgent
 from agent.policy_agent import PolicyAgent
 from replay.replay import ReplayBuffer, BufferFields
 
-class M3ACAlgorithm:
+
+
+
+
+class M3ACAlgorithm_complex:
 
     def __init__(self, batch_size):
         '''

@@ -3,8 +3,8 @@ import math
 import torch
 import logging
 from typing import Tuple, Dict, List
-from replay import BufferFields
-from agent.models import PolicyNetwork, QNetwork
+from replay.replay import BufferFields
+from agent.models.policy import PolicyNetwork, QNetwork
 from torch.nn.parallel import DistributedDataParallel as DDP
 
 class Gaussian:

@@ -11,11 +11,15 @@ import logging
 import numpy as np
 import torch.distributed as dist
 from typing import Dict, Tuple, Generator
-from algo.m3ac_algo import M3ACAlgorithm
+#from algo.m3ac_algo import M3ACAlgorithm
 from agent.imagine_agent import ImagineAgent
 from agent.discriminate_agent import DiscriminateAgent
-from agent.policy_agent import PolicyAgent
-from replay.replay import ReplayBuffer
+#from agent.policy_agent import PolicyAgent
+from agent.sac_agent import SACAgent
+from algo.sac_algo import SACAlgorithm
+from agent.model_agent import ModelAgent
+from algo.model_algo import ModelAlgorithm
+from replay.replay import ReplayBuffer, BufferFields
 #from env.env import Environment
 from envs.gym import GymEnv
 from summary_manager import SummaryManager
@@ -62,8 +66,8 @@ class MiniBatchRL:
         # should be initialized in proc setup (process independent)
         self._env = None
         self._buffer = None
-        self._algo = None
-        self._agent = None
+        self._sac_algo = None
+        self._sac_agent = None
         self._summary_manager = None
         self._logger = None
 
@@ -97,12 +101,15 @@ class MiniBatchRL:
             self._logger.info(f'init proc rank: {rank}, world size: {world_size}, device: {device_id}, master port: {port}')
 
         self._env = GymEnv(**params['env'])
-        self._algo = M3ACAlgorithm(self._batch_size)
         self._real_buffer = ReplayBuffer(**params['replay_buffer'])
         self._imag_buffer = ReplayBuffer(**params['replay_buffer'])
-        self._imag_agent = ImagineAgent()
-        self._disc_agent = DiscriminateAgent()
-        self._policy_agent = PolicyAgent()
+        #self._algo = M3ACAlgorithm(self._batch_size)
+        #self._imag_agent = ImagineAgent()
+        #self._disc_agent = DiscriminateAgent()
+        self._model_agent = ModelAgent(device_id, **params['model_agent'])
+        self._model_algo = ModelAlgorithm(device_id, self._imag_buffer, self._model_agent, **params['model_algo'])
+        self._sac_agent = SACAgent(device_id, world_size, **params['sac_agent'])
+        self._sac_algo = SACAlgorithm(device_id, self._sac_agent, **params['sac_algo'])
 
         if rank == 0:
             # only master process is responsible for summary wirtting
@@ -161,7 +168,7 @@ class MiniBatchRL:
         traj_len = 1
 
         # evaluate initial performance
-        # self._logger.info('Initial evaluation!')
+        self._logger.info('Initial evaluation!')
         # self._evaluation(0)
         if self._world_size > 1:
             dist.barrier() # sync before begin
@@ -183,24 +190,26 @@ class MiniBatchRL:
 
                 with torch.no_grad():
                     # collect samples
-                    #mu, log_std, action, log_pi = self._agent.pi(obs)
-                    #next_obs, r, d, info = self._env.step(action.detach().view(2))
-                    action = torch.rand(*self._env.action_space.shape)*2-1
-                    next_obs, r, d, info = self._env.step(action)
-                    cumulative_reward += r*(self._algo.discount**traj_len)
+                    mu, log_std, action, log_pi = self._sac_agent.pi(obs)
+                    random_action = torch.rand(BufferFields['action'])*2-1
+                    next_obs, r, d, info = self._env.step(random_action.view(BufferFields['action']), run_for_n_step=2)
+                    #next_obs, r, d, info = self._env.step(action.detach().to('cpu').view(BufferFields['action']))
+                    cumulative_reward += r*(self._sac_algo.discount**traj_len)
 
                     self._real_buffer.push(
                             state=obs.detach(),
                             action=action.detach(),
                             reward=r.detach().view(1, -1),
-                            done=d.detach().int())
+                            done=d.detach().int(),
+                            next_state=next_obs.detach())
 
-                    #q1, q2 = self._agent.q(obs, action)
-                    #if self._summary_manager: self._summary_manager.update_step_info(q1, q2, q1-q2, log_std[:, 0], log_std[:, 1], r)
+                    #import IPython; IPython.embed()
+                    q1, q2 = self._sac_agent.q(obs, action)
+                    if self._summary_manager: self._summary_manager.update_step_info(q1, q2, q1-q2, log_std[:, 0], log_std[:, 1], r)
 
                 if d or traj_len >= self._max_steps:
                     # terminate trajectory
-                    #if self._summary_manager: self._summary_manager.update_traj_info(cumulative_reward, traj_len, cum_reward_no_exp)
+                    if self._summary_manager: self._summary_manager.update_traj_info(cumulative_reward, traj_len)
                     traj_len = 1
                     cumulative_reward = 0
                     obs = self._env.reset()
@@ -212,20 +221,22 @@ class MiniBatchRL:
                     continue # haven't collected enough data yet, skip optimization
 
                 # optimize agent
-                # samples = self._buffer.sample(self._batch_size)
-                self._algo.optimize_agent(self._imag_agent, self._disc_agent, self._policy_agent,
-                        self._real_buffer, self._imag_buffer)
-                # optim_info = self._algo.optimize_agent(samples, train_step)
-                # if self._summary_manager: self._summary_manager.update(optim_info)
+                samples = self._real_buffer.sample(self._batch_size)
+                optim_info = self._sac_algo.optimize_agent(samples, train_step)
+                if self._summary_manager: self._summary_manager.update(optim_info)
+
+                optim_info = self._model_algo.optimize_agent(samples, train_step)
+                if self._summary_manager: self._summary_manager.update(optim_info)
+
+                # optimize model
 
                 if train_step % self._log_interval == 0:
-                    pass
-                    # if self._summary_manager:
-                        # curr_time = time.time_ns()
-                        # iters_per_sec = self._log_interval/((curr_time-self._last_log_time)/1e9)
-                        # self._last_log_time = curr_time
-                        # self._summary_manager.update({'ItersPerSec': iters_per_sec})
-                        # self._summary_manager.flush(train_step)
+                    if self._summary_manager:
+                        curr_time = time.time_ns()
+                        iters_per_sec = self._log_interval/((curr_time-self._last_log_time)/1e9)
+                        self._last_log_time = curr_time
+                        self._summary_manager.update({'ItersPerSec': iters_per_sec})
+                        self._summary_manager.flush(train_step)
 
             # evaluate performance for each round
             if self._world_size > 1:
@@ -251,20 +262,21 @@ class MiniBatchRL:
         cumulative_reward = 0
         obs = self._env.reset()
         movie_images.append(self._env.render())
-        #self._agent.eval_mode(True)
+        #self._sac_agent.eval_mode(True)
         for eval_step in self._tqdm_wrapper(1, self._eval_n_steps+1):
-            #_, _, action, _ = self._agent.pi(obs)
-            #next_obs, r, d, info = self._env.step(action.detach().view(2))
-            action = torch.rand(*self._env.action_space.shape)*2-1
-            next_obs, r, d, info = self._env.step(action)
-            cumulative_reward += r*(self._algo.discount**traj_len)
+            #import IPython; IPython.embed()
+            random_action = torch.rand(BufferFields['action'])*2-1
+            next_obs, r, d, info = self._env.step(random_action.view(BufferFields['action']), run_for_n_step=2)
+            #_, _, action, _ = self._sac_agent.pi(obs.to(torch.float32).view(1, -1))
+            #next_obs, r, d, info = self._env.step(action.detach().to('cpu').view(BufferFields['action']))
+            cumulative_reward += r*(self._sac_algo.discount**traj_len)
             movie_images.append(self._env.render(
                 step_reward=r,
                 cumulative_reward=cumulative_reward))
 
             if d or traj_len >= self._eval_max_steps:
                 # terminate trajectory
-                # if self._summary_manager: self._summary_manager.update_eval_traj_info(cumulative_reward, traj_len)
+                if self._summary_manager: self._summary_manager.update_eval_traj_info(cumulative_reward, traj_len)
                 traj_len = 1
                 total_trajs += 1
                 cumulative_reward = 0
@@ -275,7 +287,7 @@ class MiniBatchRL:
                 traj_len += 1
                 obs = next_obs
 
-        #self._agent.eval_mode(False)
+        self._sac_agent.eval_mode(False)
         # if self._summary_manager:
             # self._summary_manager.update({
                 # 'EvalTotalTraj': total_trajs,
@@ -295,5 +307,5 @@ class MiniBatchRL:
 
         # dump model
         #model_path = os.path.join(folder_path, f'model_rank{self._rank}.pth')
-        #self._agent.save_model(model_path)
+        #self._sac_agent.save_model(model_path)
 

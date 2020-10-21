@@ -37,7 +37,6 @@ class SummaryManager:
                 'q2GradNorm',
                 # update each traj
                 'CumReward',
-                'CumRewardNoExp',
                 'TrajLength',
                 # update each step
                 'q1',
@@ -48,7 +47,6 @@ class SummaryManager:
                 'StepReturn',
                 # update each evaluation traj
                 'EvalCumReward',
-                'EvalCumRewardNoExp',
                 'EvalTrajLength',
                 # update each evaluation step
                 'EvalStepReturn',
@@ -58,6 +56,13 @@ class SummaryManager:
                 'EvalSuccessRate',
                 # update each log interval
                 'ItersPerSec',
+                # new
+                'transitionLoss',
+                'rewardLoss',
+                'doneLoss',
+                'transitionError',
+                'rewardError',
+                'doneError',
                 ]
 
         self._summary_info = {f:[] for f in self._summary_fields}
@@ -120,15 +125,13 @@ class SummaryManager:
 
     def update_traj_info(self,
             CumReward: float,
-            TrajLength: int,
-            CumRewardNoExp: float) -> None:
+            TrajLength: int) -> None:
         '''
         Should be called at each trajectory finished.
         '''
         self.update({
             'CumReward': CumReward,
-            'TrajLength': TrajLength,
-            'CumRewardNoExp': CumRewardNoExp})
+            'TrajLength': TrajLength})
 
     def update_eval_step_info(self,
             EvalStepReturn: float) -> None:
@@ -139,12 +142,10 @@ class SummaryManager:
 
     def update_eval_traj_info(self,
             EvalCumReward: float,
-            EvalTrajLength: int,
-            EvalCumRewardNoExp: float) -> None:
+            EvalTrajLength: int) -> None:
         '''
         Should be called at each evaluation trajectory finished.
         '''
         self.update({
             'EvalCumReward': EvalCumReward,
-            'EvalTrajLength': EvalTrajLength,
-            'EvalCumRewardNoExp': EvalCumRewardNoExp})
+            'EvalTrajLength': EvalTrajLength})
