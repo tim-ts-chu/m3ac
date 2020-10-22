@@ -6,7 +6,6 @@ import logging
 from typing import List
 from agent.models.policy import MLP
 from replay.replay import BufferFields
-from torch.distributions.multivariate_normal import MultivariateNormal
 
 class ModelAgent:
 
@@ -46,26 +45,28 @@ class ModelAgent:
         return self._done_mlp.parameters()
 
     def transition(self, state, action):
+        state = state.to(self._device_id)
+        action = action.to(self._device_id)
         out = self._transition_mlp(torch.cat((state, action), dim=1))
         loc = out[:, :BufferFields['state']]
         std = torch.exp(out[:, BufferFields['state']:])
         normal = td.normal.Normal(loc, std)
         dist = td.independent.Independent(normal, 1)
         return dist 
-        next_state = dist.rsample()
-        return next_state
 
     def reward(self, state, action):
+        state = state.to(self._device_id)
+        action = action.to(self._device_id)
         out = self._reward_mlp(torch.cat((state, action), dim=1))
         loc = out[:, :BufferFields['reward']]
         std = torch.exp(out[:, BufferFields['reward']:])
         normal = td.normal.Normal(loc, std)
         dist = td.independent.Independent(normal, 1)
         return dist
-        reward = dist.rsample()
-        return reward 
 
     def done(self, state, action, get_logit=True):
+        state = state.to(self._device_id)
+        action = action.to(self._device_id)
         logits = self._done_mlp(torch.cat((state, action), dim=1))
         pred = logits.clone()
         pred[pred>0] = True

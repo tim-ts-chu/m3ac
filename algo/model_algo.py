@@ -1,7 +1,6 @@
 
 
 import torch
-
 from typing import Dict
 from replay.replay import ReplayBuffer
 from agent.model_agent import ModelAgent
@@ -21,7 +20,7 @@ class ModelAlgorithm:
         self._reward_optimizer = torch.optim.Adam(model_agent.reward_params(), lr=1e-4)
         self._done_optimizer = torch.optim.Adam(model_agent.done_params(), lr=1e-4)
 
-    def optimize_agent(self, real_samples: torch.Tensor, step: int) -> Dict:
+    def optimize_agent(self, real_samples: Dict, step: int) -> Dict:
         optim_info = {}
         
         batch_size, _ = real_samples['state'].shape
@@ -39,11 +38,11 @@ class ModelAlgorithm:
         reward_sample = reward_dist.sample()
         done_sample = done_pred
         self._imag_buffer.push_batch(
-            state=real_samples['state'],
-            action=real_samples['action'],
-            reward=reward_sample,
-            done=done_sample,
-            next_state=next_state_sample)
+            state=real_samples['state'].detach(),
+            action=real_samples['action'].detach(),
+            reward=reward_sample.detach(),
+            done=done_sample.detach(),
+            next_state=next_state_sample.detach())
 
         next_state_error = (next_state_sample-real_samples['next_state']).norm()/batch_size
         reward_error = (reward_sample-real_samples['reward']).norm()/batch_size

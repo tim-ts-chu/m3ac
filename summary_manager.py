@@ -57,12 +57,15 @@ class SummaryManager:
                 # update each log interval
                 'ItersPerSec',
                 # new
-                'transitionLoss',
-                'rewardLoss',
-                'doneLoss',
                 'transitionError',
+                'transitionLoss',
                 'rewardError',
+                'rewardLoss',
                 'doneError',
+                'doneLoss',
+                'discError',
+                'discLoss',
+                'discModelLoss',
                 ]
 
         self._summary_info = {f:[] for f in self._summary_fields}

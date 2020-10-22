@@ -48,6 +48,11 @@ def main(args: argparse.Namespace):
                 },
             'model_algo': {
                 },
+            'disc_agent': {
+                'hidden_size': [256, 256],
+                },
+            'disc_algo': {
+                },
             'minibatch': {
                 'n_steps': int(1e6),
                 'max_steps': int(1e2),
