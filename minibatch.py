@@ -110,7 +110,7 @@ class MiniBatchRL:
         self._sac_agent = SACAgent(device_id, world_size, **params['sac_agent'])
         self._sac_algo = SACAlgorithm(device_id, self._sac_agent, **params['sac_algo'])
         self._model_agent = ModelAgent(device_id, **params['model_agent'])
-        self._model_algo = ModelAlgorithm(device_id, self._imag_buffer, self._model_agent, **params['model_algo'])
+        self._model_algo = ModelAlgorithm(device_id, self._real_buffer, self._imag_buffer, self._model_agent, **params['model_algo'])
         self._disc_agent = DiscriminateAgent(device_id, **params['disc_agent'])
         self._disc_algo = DiscriminateAlgorithm(device_id, self._real_buffer, self._imag_buffer, self._disc_agent, self._model_agent, **params['disc_algo'])
 
@@ -224,12 +224,12 @@ class MiniBatchRL:
                     continue # haven't collected enough data yet, skip optimization
 
                 # optimize agent
-                samples = self._real_buffer.sample(self._batch_size)
-                optim_info = self._sac_algo.optimize_agent(samples, train_step)
-                if self._summary_manager: self._summary_manager.update(optim_info)
+                # samples = self._real_buffer.sample(self._batch_size)
+                # optim_info = self._sac_algo.optimize_agent(samples, train_step)
+                # if self._summary_manager: self._summary_manager.update(optim_info)
 
                 # optimize model
-                optim_info = self._model_algo.optimize_agent(samples, train_step)
+                optim_info = self._model_algo.optimize_agent(self._batch_size, train_step)
                 if self._summary_manager: self._summary_manager.update(optim_info)
 
                 # optimize discriminator
@@ -237,7 +237,7 @@ class MiniBatchRL:
                 if self._summary_manager: self._summary_manager.update(optim_info)
 
                 # optimize model using discriminator
-                optim_info = self._disc_algo.optimize_model_agent(self._batch_size)
+                optim_info = self._disc_algo.optimize_model_agent(self._batch_size, train_step)
                 if self._summary_manager: self._summary_manager.update(optim_info)
 
                 if train_step % self._log_interval == 0:
@@ -251,7 +251,7 @@ class MiniBatchRL:
             # evaluate performance for each round
             if self._world_size > 1:
                 dist.barrier() # sync after each round and before evaluation
-            self._evaluation(train_step)
+            # self._evaluation(train_step)
             traj_len = 0
             cumulative_reward = 0
             obs = self._env.reset()

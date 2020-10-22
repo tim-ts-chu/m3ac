@@ -80,7 +80,7 @@ class ReplayBuffer:
             self._write_idx = remain_idx
             self._curr_size = self._buffer_size
 
-    def sample(self, batch_size: int) -> torch.Tensor:
+    def sample(self, batch_size: int, device_id=None) -> torch.Tensor:
         '''
         Sample number of batch size data from replay buffer
         '''
@@ -90,14 +90,12 @@ class ReplayBuffer:
         indeces = torch.randint(0, self._curr_size, (batch_size,))
         samples = {}
         for field in BufferFields.keys():
-            samples[field] = self._buffer[field][indeces, :]
+            if device_id:
+                samples[field] = self._buffer[field][indeces, :].detach().to(device_id)
+            else:
+                samples[field] = self._buffer[field][indeces, :].detach()
 
         return samples
-
-    def sample_traj(self, batch_size: int) -> torch.Tensor:
-        pass
-
-
 
 
 

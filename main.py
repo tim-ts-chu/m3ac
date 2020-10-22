@@ -16,7 +16,7 @@ def main(args: argparse.Namespace):
     folder_path = '/home/timchu/m3ac/data/'
     task_name = 'm3ac-'+datetime.now().strftime('%m%d-%H,%M,%S,%f-')+str(args.seed)
     multiprocess = False
-    default_device_id = 2       # if world_size is one, then we use default device to run
+    default_device_id = 3       # if world_size is one, then we use default device to run
     random_seed = args.seed     # for reproducibility: default is 0
 
     if multiprocess:

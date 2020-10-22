@@ -45,8 +45,6 @@ class ModelAgent:
         return self._done_mlp.parameters()
 
     def transition(self, state, action):
-        state = state.to(self._device_id)
-        action = action.to(self._device_id)
         out = self._transition_mlp(torch.cat((state, action), dim=1))
         loc = out[:, :BufferFields['state']]
         std = torch.exp(out[:, BufferFields['state']:])
@@ -55,8 +53,6 @@ class ModelAgent:
         return dist 
 
     def reward(self, state, action):
-        state = state.to(self._device_id)
-        action = action.to(self._device_id)
         out = self._reward_mlp(torch.cat((state, action), dim=1))
         loc = out[:, :BufferFields['reward']]
         std = torch.exp(out[:, BufferFields['reward']:])
@@ -65,8 +61,6 @@ class ModelAgent:
         return dist
 
     def done(self, state, action, get_logit=True):
-        state = state.to(self._device_id)
-        action = action.to(self._device_id)
         logits = self._done_mlp(torch.cat((state, action), dim=1))
         pred = logits.clone()
         pred[pred>0] = True

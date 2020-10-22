@@ -23,14 +23,10 @@ class DiscriminateAgent:
         return self._disc_mlp.parameters()
 
     def discriminate(self, state, action, reward, done, next_state):
-        state = state.to(self._device_id)
-        action = action.to(self._device_id)
-        reward = reward.to(self._device_id)
         done = done.to(self._device_id)
         next_state = next_state.to(self._device_id)
         x = torch.cat((state, action, reward, done, next_state), dim=1).to(self._device_id)
-        #import IPython; IPython.embed()
-        logits = self._disc_mlp(x).to('cpu')
+        logits = self._disc_mlp(x)
         pred = logits.clone()
         pred[pred>0] = 1
         pred[pred<=0] = 0

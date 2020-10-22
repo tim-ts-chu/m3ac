@@ -9,10 +9,12 @@ class ModelAlgorithm:
 
     def __init__(self,
             device_id: int,
+            real_buffer: ReplayBuffer,
             imag_buffer: ReplayBuffer,
             model_agent: ModelAgent):
 
         self._device_id = device_id
+        self._real_buffer = real_buffer
         self._imag_buffer = imag_buffer
         self._model_agent = model_agent
 
@@ -20,10 +22,10 @@ class ModelAlgorithm:
         self._reward_optimizer = torch.optim.Adam(model_agent.reward_params(), lr=1e-4)
         self._done_optimizer = torch.optim.Adam(model_agent.done_params(), lr=1e-4)
 
-    def optimize_agent(self, real_samples: Dict, step: int) -> Dict:
+    def optimize_agent(self, batch_size: int, step: int) -> Dict:
         optim_info = {}
         
-        batch_size, _ = real_samples['state'].shape
+        real_samples = self._real_buffer.sample(batch_size, self._device_id)
 
         self._transition_optimizer.zero_grad()
         self._reward_optimizer.zero_grad()
@@ -47,6 +49,7 @@ class ModelAlgorithm:
         next_state_error = (next_state_sample-real_samples['next_state']).norm()/batch_size
         reward_error = (reward_sample-real_samples['reward']).norm()/batch_size
         done_error = (done_pred-real_samples['done']).norm()/batch_size
+
         optim_info['transitionError'] = next_state_error
         optim_info['rewardError'] = reward_error
         optim_info['doneError'] = done_error
@@ -68,19 +71,4 @@ class ModelAlgorithm:
         optim_info['doneLoss'] = done_loss
 
         return optim_info
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
