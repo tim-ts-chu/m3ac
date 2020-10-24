@@ -90,12 +90,16 @@ class SummaryManager:
         Generic update function
         '''
         for k, v in kwargs.items():
-            self._summary_info[k].append(float(v))
+            if isinstance(v, list):
+                self._summary_info[k].extend([float(e) for e in v])
+            else:
+                self._summary_info[k].append(float(v))
 
     def flush(self, step: int) -> None:
         '''
         Dump collected data into tensorboard
         '''
+        #import IPython; IPython.embed()
         for k, v in self._summary_info.items():
             if v:
                 vals = np.asarray(v)

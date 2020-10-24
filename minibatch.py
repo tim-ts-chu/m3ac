@@ -110,9 +110,14 @@ class MiniBatchRL:
         self._sac_agent = SACAgent(device_id, world_size, **params['sac_agent'])
         self._sac_algo = SACAlgorithm(device_id, self._sac_agent, **params['sac_algo'])
         self._model_agent = ModelAgent(device_id, **params['model_agent'])
-        self._model_algo = ModelAlgorithm(device_id, self._real_buffer, self._imag_buffer, self._model_agent, **params['model_algo'])
+        self._model_algo = ModelAlgorithm(device_id, self._real_buffer, self._imag_buffer, self._model_agent, self._sac_agent, **params['model_algo'])
         self._disc_agent = DiscriminateAgent(device_id, **params['disc_agent'])
-        self._disc_algo = DiscriminateAlgorithm(device_id, self._real_buffer, self._imag_buffer, self._disc_agent, self._model_agent, **params['disc_algo'])
+        self._disc_algo = DiscriminateAlgorithm(device_id,
+                self._real_buffer,
+                self._imag_buffer,
+                self._disc_agent,
+                self._model_agent,
+                self._sac_agent, **params['disc_algo'])
 
         if rank == 0:
             # only master process is responsible for summary wirtting
@@ -195,8 +200,8 @@ class MiniBatchRL:
                     # collect samples
                     mu, log_std, action, log_pi = self._sac_agent.pi(obs)
                     random_action = torch.rand(BufferFields['action'])*2-1
-                    next_obs, r, d, info = self._env.step(random_action.view(BufferFields['action']), run_for_n_step=2)
-                    #next_obs, r, d, info = self._env.step(action.detach().to('cpu').view(BufferFields['action']))
+                    #next_obs, r, d, info = self._env.step(random_action.view(BufferFields['action']), run_for_n_step=2)
+                    next_obs, r, d, info = self._env.step(action.detach().to('cpu').view(BufferFields['action']))
                     cumulative_reward += r*(self._sac_algo.discount**traj_len)
 
                     self._real_buffer.push(
@@ -206,7 +211,6 @@ class MiniBatchRL:
                             done=d.detach().int(),
                             next_state=next_obs.detach())
 
-                    #import IPython; IPython.embed()
                     q1, q2 = self._sac_agent.q(obs, action)
                     if self._summary_manager: self._summary_manager.update_step_info(q1, q2, q1-q2, log_std[:, 0], log_std[:, 1], r)
 
@@ -224,16 +228,16 @@ class MiniBatchRL:
                     continue # haven't collected enough data yet, skip optimization
 
                 # optimize agent
-                # samples = self._real_buffer.sample(self._batch_size)
-                # optim_info = self._sac_algo.optimize_agent(samples, train_step)
-                # if self._summary_manager: self._summary_manager.update(optim_info)
+                samples = self._real_buffer.sample(self._batch_size)
+                optim_info = self._sac_algo.optimize_agent(samples, train_step)
+                if self._summary_manager: self._summary_manager.update(optim_info)
 
                 # optimize model
-                optim_info = self._model_algo.optimize_agent(self._batch_size, train_step)
+                optim_info = self._model_algo.optimize_agent(self._batch_size, 1, train_step)
                 if self._summary_manager: self._summary_manager.update(optim_info)
 
                 # optimize discriminator
-                optim_info = self._disc_algo.optimize_agent(self._batch_size, train_step)
+                optim_info = self._disc_algo.optimize_agent(self._batch_size, 1, train_step)
                 if self._summary_manager: self._summary_manager.update(optim_info)
 
                 # optimize model using discriminator
