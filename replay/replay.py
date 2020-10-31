@@ -3,12 +3,19 @@ import torch
 
 # field name and dimension
 BufferFields = {
-        'state': 111,
-        'action': 8,
-        'reward': 1,
-        'done': 1,
-        'next_state': 111,
+        'state': None,
+        'action': None,
+        'reward': None,
+        'done': None,
+        'next_state': None,
         }
+
+def set_buffer_dim(state_dim, action_dim, reward_dim, done_dim):
+    BufferFields['state'] = state_dim
+    BufferFields['action'] = action_dim
+    BufferFields['reward'] = reward_dim
+    BufferFields['done'] = done_dim
+    BufferFields['next_state'] = state_dim
 
 class ReplayBuffer:
     '''

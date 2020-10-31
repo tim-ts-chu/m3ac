@@ -16,7 +16,7 @@ def main(args: argparse.Namespace):
     folder_path = '/home/timchu/m3ac/data/'
     task_name = 'm3ac-'+datetime.now().strftime('%m%d-%H,%M,%S,%f-')+str(args.seed)
     multiprocess = False
-    default_device_id = 1       # if world_size is one, then we use default device to run
+    default_device_id = 3       # if world_size is one, then we use default device to run
     random_seed = args.seed     # for reproducibility: default is 0
 
     if multiprocess:
@@ -27,7 +27,9 @@ def main(args: argparse.Namespace):
 
     params = {
             'env': {
-                'id': 'Ant-v3'
+                'id': 'Hopper-v2'
+                #'id': 'HalfCheetah-v2'
+                #'id': 'Ant-v2'
                 },
             'replay_buffer': {
                 'buffer_size': int(1e6),
@@ -38,7 +40,7 @@ def main(args: argparse.Namespace):
                 'q_hidden_size': [256, 256]
                 },
             'sac_algo': {
-                'discount': 0.99,
+                'discount': 1,
                 #'target_entropy': -1
                 },
             'model_agent': {
@@ -55,11 +57,11 @@ def main(args: argparse.Namespace):
                 },
             'minibatch': {
                 'n_steps': int(1e6),
-                'max_steps': int(1e2),
+                'max_steps': int(1e3),
                 'log_interval': int(1e3),
                 'eval_interval': int(1e4),
                 'eval_n_steps': int(1e3),
-                'eval_max_steps': int(1e2),
+                'eval_max_steps': int(1e3),
                 'batch_size': int(128)
                 },
             'other_info': {   # dumping some information for the record only, not really params
@@ -68,7 +70,7 @@ def main(args: argparse.Namespace):
                 'task_name': task_name,
                 'world_size': world_size,
                 'multiprocesses': multiprocess,
-                'other_comments': ''
+                'other_comments': 'random_policy, mean_square_error, predict_diff'
                 },
             }
 

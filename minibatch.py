@@ -21,7 +21,7 @@ from agent.model_agent import ModelAgent
 from algo.model_algo import ModelAlgorithm
 from agent.disc_agent import DiscriminateAgent
 from algo.disc_algo import DiscriminateAlgorithm
-from replay.replay import ReplayBuffer, BufferFields
+from replay.replay import ReplayBuffer, BufferFields, set_buffer_dim
 #from env.env import Environment
 from envs.gym import GymEnv
 from summary_manager import SummaryManager
@@ -103,15 +103,23 @@ class MiniBatchRL:
             self._logger.info(f'init proc rank: {rank}, world size: {world_size}, device: {device_id}, master port: {port}')
 
         self._env = GymEnv(**params['env'])
+
+        self._set_buffer_dim()
         self._real_buffer = ReplayBuffer(**params['replay_buffer'])
         self._imag_buffer = ReplayBuffer(**params['replay_buffer'])
-        #self._algo = M3ACAlgorithm(self._batch_size)
-        #self._imag_agent = ImagineAgent()
+
         self._sac_agent = SACAgent(device_id, world_size, **params['sac_agent'])
-        self._sac_algo = SACAlgorithm(device_id, self._sac_agent, **params['sac_algo'])
         self._model_agent = ModelAgent(device_id, **params['model_agent'])
-        self._model_algo = ModelAlgorithm(device_id, self._real_buffer, self._imag_buffer, self._model_agent, self._sac_agent, **params['model_algo'])
         self._disc_agent = DiscriminateAgent(device_id, **params['disc_agent'])
+
+        self._sac_algo = SACAlgorithm(device_id,
+                self._sac_agent, **params['sac_algo'])
+        self._model_algo = ModelAlgorithm(device_id,
+                self._real_buffer,
+                self._imag_buffer,
+                self._model_agent,
+                self._sac_agent,
+                self._disc_agent, **params['model_algo'])
         self._disc_algo = DiscriminateAlgorithm(device_id,
                 self._real_buffer,
                 self._imag_buffer,
@@ -165,6 +173,15 @@ class MiniBatchRL:
         logger.addHandler(handler)
         self._logger = logger
 
+    def _set_buffer_dim(self):
+        '''
+        Set buffer dimension according to the environment object.
+        '''
+        state_dim = self._env.observation_space.shape[0]
+        action_dim = self._env.action_space.shape[0]
+        set_buffer_dim(state_dim, action_dim, 1, 1)
+        self._logger.info('state dim:{}, action dim:{}'.format(state_dim, action_dim))
+
     def _train(self, rank: int, world_size: int, params: Dict) -> None:
         '''
         Main training flow control. Based on the assigned total number of required steps
@@ -176,7 +193,7 @@ class MiniBatchRL:
         traj_len = 1
 
         # evaluate initial performance
-        self._logger.info('Initial evaluation!')
+        # self._logger.info('Initial evaluation!')
         # self._evaluation(0)
         if self._world_size > 1:
             dist.barrier() # sync before begin
@@ -199,8 +216,8 @@ class MiniBatchRL:
                 with torch.no_grad():
                     # collect samples
                     mu, log_std, action, log_pi = self._sac_agent.pi(obs)
-                    random_action = torch.rand(BufferFields['action'])*2-1
-                    #next_obs, r, d, info = self._env.step(random_action.view(BufferFields['action']), run_for_n_step=2)
+                    #random_action = torch.rand(BufferFields['action'])*2-1
+                    #next_obs, r, d, info = self._env.step(random_action.view(BufferFields['action']), run_for_n_step=1)
                     next_obs, r, d, info = self._env.step(action.detach().to('cpu').view(BufferFields['action']))
                     cumulative_reward += r*(self._sac_algo.discount**traj_len)
 
@@ -237,12 +254,12 @@ class MiniBatchRL:
                 if self._summary_manager: self._summary_manager.update(optim_info)
 
                 # optimize discriminator
-                optim_info = self._disc_algo.optimize_agent(self._batch_size, 1, train_step)
-                if self._summary_manager: self._summary_manager.update(optim_info)
+                # optim_info = self._disc_algo.optimize_agent(self._batch_size, 1, train_step)
+                # if self._summary_manager: self._summary_manager.update(optim_info)
 
                 # optimize model using discriminator
-                optim_info = self._disc_algo.optimize_model_agent(self._batch_size, train_step)
-                if self._summary_manager: self._summary_manager.update(optim_info)
+                # optim_info = self._disc_algo.optimize_model_agent(self._batch_size, train_step)
+                # if self._summary_manager: self._summary_manager.update(optim_info)
 
                 if train_step % self._log_interval == 0:
                     if self._summary_manager:

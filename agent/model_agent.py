@@ -29,7 +29,7 @@ class ModelAgent:
                 reward_hidden_size,
                 2).to(device_id)
 
-        # output sigmoid 
+        # output logits for sigmoid
         self._done_mlp = MLP(
                 BufferFields['state']+BufferFields['action'],
                 done_hidden_size,
