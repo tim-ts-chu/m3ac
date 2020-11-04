@@ -250,16 +250,17 @@ class MiniBatchRL:
                 if self._summary_manager: self._summary_manager.update(optim_info)
 
                 # optimize model
-                optim_info = self._model_algo.optimize_agent(self._batch_size, 1, train_step)
+                optim_info = self._model_algo.optimize_agent(self._batch_size, 10, train_step)
                 if self._summary_manager: self._summary_manager.update(optim_info)
-
-                # optimize discriminator
-                # optim_info = self._disc_algo.optimize_agent(self._batch_size, 1, train_step)
-                # if self._summary_manager: self._summary_manager.update(optim_info)
 
                 # optimize model using discriminator
                 # optim_info = self._disc_algo.optimize_model_agent(self._batch_size, train_step)
                 # if self._summary_manager: self._summary_manager.update(optim_info)
+
+                # optimize discriminator
+                optim_info = self._disc_algo.optimize_agent(self._batch_size, 1, train_step)
+                if self._summary_manager: self._summary_manager.update(optim_info)
+
 
                 if train_step % self._log_interval == 0:
                     if self._summary_manager:

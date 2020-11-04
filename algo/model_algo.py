@@ -24,6 +24,11 @@ class ModelAlgorithm:
         self._policy_agent = policy_agent
         self._disc_agent = disc_agent
 
+        self._transition_loss_weight = 0
+        self._reward_loss_weight = 0
+        self._done_loss_weight = 0
+        self._disc_loss_weight = 1
+
         self._transition_optimizer = torch.optim.Adam(model_agent.transition_params(), lr=1e-4)
         self._reward_optimizer = torch.optim.Adam(model_agent.reward_params(), lr=1e-4)
         self._done_optimizer = torch.optim.Adam(model_agent.done_params(), lr=1e-4)
@@ -50,8 +55,10 @@ class ModelAlgorithm:
 
             # imagine next_state, reward, done?
             next_state_sample = real_samples['state'] + next_state_diff_dist.rsample()
-            reward_sample = reward_dist.rsample()
-            done_sample = done_pred
+            # reward_sample = reward_dist.rsample()
+            # done_sample = done_pred
+            reward_sample = real_samples['reward']
+            done_sample = real_samples['done']
 
             # self._imag_buffer.push_batch(
                 # state=real_samples['state'].detach(),
@@ -68,14 +75,30 @@ class ModelAlgorithm:
             optim_info['rewardError'].append(reward_error)
             optim_info['doneError'].append(done_error)
 
-            # mean square error
+            # model loss (mean square error)
             transition_loss = torch.mean((next_state_sample-real_samples['next_state']).square())
             reward_loss = torch.mean((reward_sample-real_samples['reward']).square())
             done_loss = torch.nn.BCEWithLogitsLoss()(done_logits, real_samples['done'])
+            
+            # discriminator loss
+            logits, pred = self._disc_agent.discriminate(
+                    real_samples['state'],
+                    real_samples['action'], # TODO how should we use the record action? or use current policy to decide?
+                    #random_action, # TODO how should we use the record action? or use current policy to decide?
+                    reward_sample,
+                    done_sample, # FIXME how to backprop?
+                    next_state_sample)
 
-            transition_loss.backward()
-            reward_loss.backward()
-            done_loss.backward()
+            labels = torch.ones(batch_size).view(-1,1).to(self._device_id)
+            disc_loss = torch.nn.BCEWithLogitsLoss()(logits, labels)
+            optim_info['discModelLoss'] = disc_loss
+
+
+            # weighted sum total loss
+            total_loss = self._transition_loss_weight*transition_loss + self._reward_loss_weight*reward_loss + \
+                    self._done_loss_weight*done_loss + self._disc_loss_weight*disc_loss
+
+            total_loss.backward()
 
             self._transition_optimizer.step()
             self._reward_optimizer.step()

@@ -70,7 +70,7 @@ def main(args: argparse.Namespace):
                 'task_name': task_name,
                 'world_size': world_size,
                 'multiprocesses': multiprocess,
-                'other_comments': 'random_policy, mean_square_error, predict_diff'
+                'other_comments': 'gan part only, multiple model step'
                 },
             }
 

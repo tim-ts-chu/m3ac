@@ -12,7 +12,7 @@ class MLP(torch.nn.Module):
         input_size: int,
         hidden_sizes: List,
         output_size: int,
-        activation: torch.nn.Module=torch.nn.ReLU,
+        activation: torch.nn.Module=torch.nn.LeakyReLU,
         output_layer=None):
         super().__init__()
 

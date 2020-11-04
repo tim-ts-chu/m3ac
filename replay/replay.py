@@ -25,10 +25,11 @@ class ReplayBuffer:
     on how much memory the machine has.
     '''
 
-    def __init__(self, buffer_size: int, device: int=None):
+    def __init__(self, buffer_size: int, dtype: torch.dtype=None, device: int=None):
 
         self._buffer_size = buffer_size
         self._device = device
+        self._dtype = dtype
 
         self._buffer = {}
         self._curr_size = 0
@@ -64,6 +65,8 @@ class ReplayBuffer:
         '''
         Push batch data record into replay buffer
         '''
+
+        raise RuntimeError(f'this function is deprecated due to support for sequence sampling')
         if kwargs.keys() != BufferFields.keys():
             raise RuntimeError(f'push data into an unexisting field: {kwargs.keys()}!={BufferFields.keys()}')
         
@@ -103,6 +106,54 @@ class ReplayBuffer:
                 samples[field] = self._buffer[field][indeces, :].detach()
 
         return samples
+
+    def sample_sequence(self, batch_size: int, max_steps: int=15, device_id=None):
+        '''
+        Sample number of batch size sequence, each sequence has length of max_steps.
+        If the episode is smaller than max_steps, zeros will be filled in the rest
+        of the field.
+
+        @ret tensors with shape (b, t, d) for each field
+        '''
+
+        if max_steps > self._curr_size:
+            raise RuntimeError(f'max_steps {max_steps} is larger than buffer_size {self._curr_size}')
+
+        # initicalize buffer size
+        samples = {}
+        for field in BufferFields.keys():
+            if device_id:
+                samples[field] = torch.zeros(batch_size, max_steps, BufferFields[field], dtype=self._dtype, device=device_id)
+            else:
+                samples[field] = torch.zeros(batch_size, max_steps, BufferFields[field], dtype=self._dtype, device=self._device)
+
+
+        # fill buffer by done flag
+        buffer_indeces = torch.arange(batch_size)
+        sample_indeces = torch.randint(0, self._curr_size, (batch_size,))
+        for t in range(max_steps):
+            for field in BufferFields.keys():
+                samples[field][buffer_indeces, t, :] = self._buffer[field][sample_indeces,:]
+
+            # handle terminated sequence
+            done_mask = (samples['done'][buffer_indeces,t,:] < 0.5).view(-1) # done is saved as 1. or 0. in float
+
+            if done_mask.sum() < 1:
+                break
+
+            buffer_indeces = buffer_indeces[done_mask]
+            sample_indeces = sample_indeces[done_mask] + 1
+            sample_indeces[sample_indeces>=self._buffer_size] -= self._buffer_size # circling if need
+
+        return samples
+
+
+
+
+
+
+
+
 
 
 

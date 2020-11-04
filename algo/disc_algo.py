@@ -41,16 +41,18 @@ class DiscriminateAlgorithm:
             with torch.no_grad():
                 # generate imaginary sample
                 imag_samples = {}
-                next_state_dist = self._model_agent.transition(real_samples['state'], real_samples['action'])
+                next_state_diff_dist = self._model_agent.transition(real_samples['state'], real_samples['action'])
                 reward_dist = self._model_agent.reward(real_samples['state'], real_samples['action'])
                 done_logits, done_pred = self._model_agent.done(real_samples['state'], real_samples['action'])
-                next_state_sample = next_state_dist.sample()
+                next_state_sample = real_samples['state']+next_state_diff_dist.sample()
                 reward_sample = reward_dist.sample()
                 done_sample = done_pred
                 imag_samples['state'] = real_samples['state']
                 imag_samples['action'] = real_samples['action']
-                imag_samples['reward'] = reward_sample
-                imag_samples['done'] = done_sample
+                # imag_samples['reward'] = reward_sample
+                # imag_samples['done'] = done_sample
+                imag_samples['reward'] = real_samples['reward']
+                imag_samples['done'] = real_samples['done']
                 imag_samples['next_state'] = next_state_sample
 
             samples = {}
@@ -65,7 +67,7 @@ class DiscriminateAlgorithm:
                     samples['reward'].detach(),
                     samples['done'].detach(),
                     samples['next_state'].detach())
-            error = (pred-labels).norm()/batch_size
+            error = (pred-labels).abs().sum()/(2*batch_size)
 
             loss = torch.nn.BCEWithLogitsLoss()(logits, labels)
             loss.backward()
@@ -85,12 +87,14 @@ class DiscriminateAlgorithm:
         self._done_optimizer.zero_grad()
 
         # generate imaginary sample
-        next_state_dist = self._model_agent.transition(real_samples['state'], real_samples['action'])
+        next_state_diff_dist = self._model_agent.transition(real_samples['state'], real_samples['action'])
         reward_dist = self._model_agent.reward(real_samples['state'], real_samples['action'])
         done_logits, done_pred = self._model_agent.done(real_samples['state'], real_samples['action'])
-        next_state_sample = next_state_dist.rsample()
-        reward_sample = reward_dist.rsample()
-        done_sample = done_pred
+        next_state_sample = real_samples['state']+next_state_diff_dist.rsample()
+        # reward_sample = reward_dist.rsample()
+        # done_sample = done_pred
+        reward_sample = real_samples['reward']
+        done_sample = real_samples['done']
 
         random_action = torch.rand(batch_size, BufferFields['action'], device=self._device_id)*2-1
         logits, pred = self._disc_agent.discriminate(
