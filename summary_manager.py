@@ -58,6 +58,11 @@ class SummaryManager:
                 'ItersPerSec',
                 # new
                 'transitionError',
+                'transitionError-1',
+                'transitionError-3',
+                'transitionError-5',
+                'transitionError-10',
+                'transitionError-20',
                 'transitionLoss',
                 'rewardError',
                 'rewardLoss',

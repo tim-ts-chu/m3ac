@@ -100,7 +100,7 @@ class ReplayBuffer:
         indeces = torch.randint(0, self._curr_size, (batch_size,))
         samples = {}
         for field in BufferFields.keys():
-            if device_id:
+            if device_id is not None:
                 samples[field] = self._buffer[field][indeces, :].detach().to(device_id)
             else:
                 samples[field] = self._buffer[field][indeces, :].detach()
@@ -121,19 +121,20 @@ class ReplayBuffer:
 
         # initicalize buffer size
         samples = {}
-        for field in BufferFields.keys():
-            if device_id:
-                samples[field] = torch.zeros(batch_size, max_steps, BufferFields[field], dtype=self._dtype, device=device_id)
-            else:
-                samples[field] = torch.zeros(batch_size, max_steps, BufferFields[field], dtype=self._dtype, device=self._device)
+        if device_id is not None:
+            device = device_id
+        else:
+            device = self._device
 
+        for field in BufferFields.keys():
+            samples[field] = torch.zeros(batch_size, max_steps, BufferFields[field], dtype=self._dtype, device=device)
 
         # fill buffer by done flag
         buffer_indeces = torch.arange(batch_size)
         sample_indeces = torch.randint(0, self._curr_size, (batch_size,))
         for t in range(max_steps):
             for field in BufferFields.keys():
-                samples[field][buffer_indeces, t, :] = self._buffer[field][sample_indeces,:]
+                samples[field][buffer_indeces, t, :] = self._buffer[field][sample_indeces,:].to(device)
 
             # handle terminated sequence
             done_mask = (samples['done'][buffer_indeces,t,:] < 0.5).view(-1) # done is saved as 1. or 0. in float

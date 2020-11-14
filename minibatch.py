@@ -241,7 +241,8 @@ class MiniBatchRL:
                     traj_len += 1
                     obs = next_obs
 
-                if self._real_buffer.size < self._batch_size:
+                #if self._real_buffer.size < self._batch_size:
+                if self._real_buffer.size < 10240: # late start
                     continue # haven't collected enough data yet, skip optimization
 
                 # optimize agent

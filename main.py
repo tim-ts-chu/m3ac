@@ -16,7 +16,7 @@ def main(args: argparse.Namespace):
     folder_path = '/home/timchu/m3ac/data/'
     task_name = 'm3ac-'+datetime.now().strftime('%m%d-%H,%M,%S,%f-')+str(args.seed)
     multiprocess = False
-    default_device_id = 3       # if world_size is one, then we use default device to run
+    default_device_id = 1       # if world_size is one, then we use default device to run
     random_seed = args.seed     # for reproducibility: default is 0
 
     if multiprocess:
@@ -41,7 +41,6 @@ def main(args: argparse.Namespace):
                 },
             'sac_algo': {
                 'discount': 1,
-                #'target_entropy': -1
                 },
             'model_agent': {
                 'model_hidden_size': [256, 256],
@@ -62,7 +61,7 @@ def main(args: argparse.Namespace):
                 'eval_interval': int(1e4),
                 'eval_n_steps': int(1e3),
                 'eval_max_steps': int(1e3),
-                'batch_size': int(128)
+                'batch_size': int(256)
                 },
             'other_info': {   # dumping some information for the record only, not really params
                 'BufferFields': BufferFields,
@@ -70,7 +69,7 @@ def main(args: argparse.Namespace):
                 'task_name': task_name,
                 'world_size': world_size,
                 'multiprocesses': multiprocess,
-                'other_comments': 'gan part only, multiple model step'
+                'other_comments': 'late start, regression loss'
                 },
             }
 
