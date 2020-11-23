@@ -16,7 +16,7 @@ def main(args: argparse.Namespace):
     folder_path = '/home/timchu/m3ac/data/'
     task_name = 'm3ac-'+datetime.now().strftime('%m%d-%H,%M,%S,%f-')+str(args.seed)
     multiprocess = False
-    default_device_id = 1       # if world_size is one, then we use default device to run
+    default_device_id = 0       # if world_size is one, then we use default device to run
     random_seed = args.seed     # for reproducibility: default is 0
 
     if multiprocess:
@@ -43,11 +43,16 @@ def main(args: argparse.Namespace):
                 'discount': 1,
                 },
             'model_agent': {
+                'model_reward': True,
                 'model_hidden_size': [256, 256],
                 'reward_hidden_size': [256, 256],
                 'done_hidden_size': [256, 256],
                 },
             'model_algo': {
+                'transition_reg_loss_weight': 1,
+                'reward_reg_loss_weight': 1,
+                'transition_gan_loss_weight': 0,
+                'reward_gan_loss_weight': 0
                 },
             'disc_agent': {
                 'hidden_size': [256, 256],
@@ -64,12 +69,13 @@ def main(args: argparse.Namespace):
                 'batch_size': int(256)
                 },
             'other_info': {   # dumping some information for the record only, not really params
+                'default_device_id': default_device_id,
                 'BufferFields': BufferFields,
                 'random_seed': random_seed,
                 'task_name': task_name,
                 'world_size': world_size,
                 'multiprocesses': multiprocess,
-                'other_comments': 'late start, regression loss'
+                'other_comments': 'no fake env, model reward, trans reg loss, no next_s to reward'
                 },
             }
 

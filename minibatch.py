@@ -24,6 +24,7 @@ from algo.disc_algo import DiscriminateAlgorithm
 from replay.replay import ReplayBuffer, BufferFields, set_buffer_dim
 #from env.env import Environment
 from envs.gym import GymEnv
+from envs.fake_env import get_fake_env
 from summary_manager import SummaryManager
 
 try:
@@ -91,7 +92,7 @@ class MiniBatchRL:
         self._set_random_seed(random_seed, rank)
 
         if world_size == 1:
-            device_id = default_device_id
+            self.device_id = default_device_id
         else:
             # setup proc
             os.environ['MASTER_ADDR'] = 'localhost'
@@ -99,33 +100,38 @@ class MiniBatchRL:
 
             dist.init_process_group(backend="nccl", rank=rank, world_size=world_size)
             device_count = torch.cuda.device_count()
-            device_id = rank % device_count
-            self._logger.info(f'init proc rank: {rank}, world size: {world_size}, device: {device_id}, master port: {port}')
+            self.device_id = rank % device_count
+            self._logger.info(f'init proc rank: {rank}, world size: {world_size}, device: {self.device_id}, master port: {port}')
 
         self._env = GymEnv(**params['env'])
-
         self._set_buffer_dim()
         self._real_buffer = ReplayBuffer(**params['replay_buffer'])
         self._imag_buffer = ReplayBuffer(**params['replay_buffer'])
 
-        self._sac_agent = SACAgent(device_id, world_size, **params['sac_agent'])
-        self._model_agent = ModelAgent(device_id, **params['model_agent'])
-        self._disc_agent = DiscriminateAgent(device_id, **params['disc_agent'])
+        self._sac_agent = SACAgent(self.device_id, world_size, **params['sac_agent'])
+        self._model_agent = ModelAgent(self.device_id, **params['model_agent'])
+        self._disc_agent = DiscriminateAgent(self.device_id, **params['disc_agent'])
 
-        self._sac_algo = SACAlgorithm(device_id,
+        self._fake_env = get_fake_env(params['env']['id'], self._model_agent, self._env)
+
+        self._sac_algo = SACAlgorithm(self.device_id,
                 self._sac_agent, **params['sac_algo'])
-        self._model_algo = ModelAlgorithm(device_id,
+        self._model_algo = ModelAlgorithm(self.device_id,
                 self._real_buffer,
                 self._imag_buffer,
                 self._model_agent,
                 self._sac_agent,
-                self._disc_agent, **params['model_algo'])
-        self._disc_algo = DiscriminateAlgorithm(device_id,
+                self._disc_agent,
+                self._fake_env,
+                **params['model_algo'])
+        self._disc_algo = DiscriminateAlgorithm(self.device_id,
                 self._real_buffer,
                 self._imag_buffer,
                 self._disc_agent,
                 self._model_agent,
-                self._sac_agent, **params['disc_algo'])
+                self._sac_agent,
+                self._fake_env,
+                **params['disc_algo'])
 
         if rank == 0:
             # only master process is responsible for summary wirtting
@@ -219,6 +225,13 @@ class MiniBatchRL:
                     #random_action = torch.rand(BufferFields['action'])*2-1
                     #next_obs, r, d, info = self._env.step(random_action.view(BufferFields['action']), run_for_n_step=1)
                     next_obs, r, d, info = self._env.step(action.detach().to('cpu').view(BufferFields['action']))
+                    # FIXME debug
+                    fake_r = self._fake_env._get_rewared(
+                            obs.to(self.device_id),
+                            action.to(self.device_id),
+                            next_obs.to(self.device_id))
+                    #print(f"real_r: {r}, fake_r: {fake_r}")
+                    #import IPython; IPython.embed()
                     cumulative_reward += r*(self._sac_algo.discount**traj_len)
 
                     self._real_buffer.push(
@@ -229,7 +242,8 @@ class MiniBatchRL:
                             next_state=next_obs.detach())
 
                     q1, q2 = self._sac_agent.q(obs, action)
-                    if self._summary_manager: self._summary_manager.update_step_info(q1, q2, q1-q2, log_std[:, 0], log_std[:, 1], r)
+                    if self._summary_manager: self._summary_manager.update_step_info(
+                            q1, q2, q1-q2, log_std[:, 0], log_std[:, 1], r)
 
                 if d or traj_len >= self._max_steps:
                     # terminate trajectory
@@ -241,17 +255,18 @@ class MiniBatchRL:
                     traj_len += 1
                     obs = next_obs
 
-                #if self._real_buffer.size < self._batch_size:
-                if self._real_buffer.size < 10240: # late start
-                    continue # haven't collected enough data yet, skip optimization
-
-                # optimize agent
-                samples = self._real_buffer.sample(self._batch_size)
-                optim_info = self._sac_algo.optimize_agent(samples, train_step)
-                if self._summary_manager: self._summary_manager.update(optim_info)
+                if self._real_buffer.size < self._batch_size:
+                #if self._real_buffer.size < 10240: # late start
+                   continue # haven't collected enough data yet, skip optimization
 
                 # optimize model
                 optim_info = self._model_algo.optimize_agent(self._batch_size, 10, train_step)
+                if self._summary_manager: self._summary_manager.update(optim_info)
+
+                # optimize policy agent
+                #samples = self._real_buffer.sample(self._batch_size)
+                samples = self._model_algo.generate_samples(self._batch_size)
+                optim_info = self._sac_algo.optimize_agent(samples, train_step)
                 if self._summary_manager: self._summary_manager.update(optim_info)
 
                 # optimize model using discriminator
@@ -298,10 +313,10 @@ class MiniBatchRL:
         #self._sac_agent.eval_mode(True)
         for eval_step in self._tqdm_wrapper(1, self._eval_n_steps+1):
             #import IPython; IPython.embed()
-            random_action = torch.rand(BufferFields['action'])*2-1
-            next_obs, r, d, info = self._env.step(random_action.view(BufferFields['action']), run_for_n_step=2)
-            #_, _, action, _ = self._sac_agent.pi(obs.to(torch.float32).view(1, -1))
-            #next_obs, r, d, info = self._env.step(action.detach().to('cpu').view(BufferFields['action']))
+            # random_action = torch.rand(BufferFields['action'])*2-1
+            # next_obs, r, d, info = self._env.step(random_action.view(BufferFields['action']), run_for_n_step=2)
+            _, _, action, _ = self._sac_agent.pi(obs.to(torch.float32).view(1, -1))
+            next_obs, r, d, info = self._env.step(action.detach().to('cpu').view(BufferFields['action']))
             cumulative_reward += r*(self._sac_algo.discount**traj_len)
             movie_images.append(self._env.render(
                 step_reward=r,

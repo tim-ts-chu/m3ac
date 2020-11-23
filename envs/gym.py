@@ -15,6 +15,9 @@ class GymEnv:
     def observation_space(self):
         return self._env.observation_space
 
+    def getattr(self, attr_name):
+        return getattr(self._env, attr_name)
+
     def step(self, action: torch.Tensor, run_for_n_step = 1):
         r_sum = 0
         for i in range(run_for_n_step):

@@ -13,7 +13,8 @@ class ModelAgent:
             device_id: int,
             model_hidden_size: List,
             reward_hidden_size: List,
-            done_hidden_size: List):
+            done_hidden_size: List, 
+            model_reward: bool):
 
         self._device_id = device_id
 
@@ -25,7 +26,7 @@ class ModelAgent:
 
         # output gaussian mean, std
         self._reward_mlp = MLP(
-                BufferFields['state']+BufferFields['action'],
+                BufferFields['state']+BufferFields['action']+BufferFields['next_state'],
                 reward_hidden_size,
                 2).to(device_id)
 
@@ -34,6 +35,12 @@ class ModelAgent:
                 BufferFields['state']+BufferFields['action'],
                 done_hidden_size,
                 1).to(device_id)
+
+        self.transition = self._transition
+        if model_reward:
+            self.reward = self._reward
+        else:
+            self.reward = None
 
     def transition_params(self):
         return self._transition_mlp.parameters()
@@ -44,7 +51,7 @@ class ModelAgent:
     def done_params(self):
         return self._done_mlp.parameters()
 
-    def transition(self, state, action):
+    def _transition(self, state, action):
         out = self._transition_mlp(torch.cat((state, action), dim=1))
         loc = out[:, :BufferFields['state']]
         std = torch.exp(out[:, BufferFields['state']:])
@@ -52,15 +59,15 @@ class ModelAgent:
         dist = td.independent.Independent(normal, 1)
         return dist 
 
-    def reward(self, state, action):
-        out = self._reward_mlp(torch.cat((state, action), dim=1))
+    def _reward(self, state, action, next_state):
+        out = self._reward_mlp(torch.cat((state, action, next_state), dim=1))
         loc = out[:, :BufferFields['reward']]
         std = torch.exp(out[:, BufferFields['reward']:])
         normal = td.normal.Normal(loc, std)
         dist = td.independent.Independent(normal, 1)
         return dist
 
-    def done(self, state, action, get_logit=True):
+    def done(self, state, action):
         logits = self._done_mlp(torch.cat((state, action), dim=1))
         pred = logits.clone()
         pred[pred>0] = True

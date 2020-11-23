@@ -1,6 +1,8 @@
 
 import torch
+import torch.nn.functional as F
 from typing import Dict
+from envs.fake_env import BaseFakeEnv
 from replay.replay import ReplayBuffer, BufferFields
 from agent.disc_agent import DiscriminateAgent
 from agent.model_agent import ModelAgent
@@ -13,7 +15,8 @@ class DiscriminateAlgorithm:
             imag_buffer: ReplayBuffer,
             disc_agent: DiscriminateAgent,
             model_agent: ModelAgent,
-            policy_agent: SACAgent):
+            policy_agent: SACAgent,
+            fake_env):
 
         self._device_id = device_id
         self._real_buffer = real_buffer
@@ -21,13 +24,14 @@ class DiscriminateAlgorithm:
         self._disc_agent = disc_agent
         self._model_agent = model_agent
         self._policy_agent = policy_agent
+        self._fake_env = fake_env
 
         self._disc_optimizer = torch.optim.Adam(disc_agent.params(), lr=1e-4)
 
         # TODO should we use the optimizer which is different from the leaning model one
         self._transition_optimizer = torch.optim.Adam(model_agent.transition_params(), lr=1e-4)
         self._reward_optimizer = torch.optim.Adam(model_agent.reward_params(), lr=1e-4)
-        self._done_optimizer = torch.optim.Adam(model_agent.done_params(), lr=1e-4)
+        #self._done_optimizer = torch.optim.Adam(model_agent.done_params(), lr=1e-4)
 
     def optimize_agent(self, batch_size, num_iter: int, step: int) -> Dict:
         optim_info = {}
@@ -41,19 +45,20 @@ class DiscriminateAlgorithm:
             with torch.no_grad():
                 # generate imaginary sample
                 imag_samples = {}
-                next_state_diff_dist = self._model_agent.transition(real_samples['state'], real_samples['action'])
-                reward_dist = self._model_agent.reward(real_samples['state'], real_samples['action'])
-                done_logits, done_pred = self._model_agent.done(real_samples['state'], real_samples['action'])
-                next_state_sample = real_samples['state']+next_state_diff_dist.sample()
-                reward_sample = reward_dist.sample()
-                done_sample = done_pred
+                # next_state_diff_dist = self._model_agent.transition(real_samples['state'], real_samples['action'])
+                # next_state_sample = real_samples['state']+next_state_diff_dist.sample()
+                next_state, reward, done, info = self._fake_env.step(real_samples['state'], real_samples['action'])
+                # reward_dist = self._model_agent.reward(real_samples['state'], real_samples['action'])
+                # reward_sample = reward_dist.sample()
+                # done_logits, done_pred = self._model_agent.done(real_samples['state'], real_samples['action'])
+                # done_sample = done_pred
                 imag_samples['state'] = real_samples['state']
                 imag_samples['action'] = real_samples['action']
                 # imag_samples['reward'] = reward_sample
                 # imag_samples['done'] = done_sample
                 imag_samples['reward'] = real_samples['reward']
                 imag_samples['done'] = real_samples['done']
-                imag_samples['next_state'] = next_state_sample
+                imag_samples['next_state'] = next_state
 
             samples = {}
             for k in BufferFields.keys():
@@ -69,7 +74,7 @@ class DiscriminateAlgorithm:
                     samples['next_state'].detach())
             error = (pred-labels).abs().sum()/(2*batch_size)
 
-            loss = torch.nn.BCEWithLogitsLoss()(logits, labels)
+            loss = F.binary_cross_entropy_with_logits(logits, labels)
             loss.backward()
             self._disc_optimizer.step()
 

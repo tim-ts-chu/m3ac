@@ -63,14 +63,15 @@ class SummaryManager:
                 'transitionError-5',
                 'transitionError-10',
                 'transitionError-20',
-                'transitionLoss',
                 'rewardError',
-                'rewardLoss',
-                'doneError',
-                'doneLoss',
                 'discError',
+                'doneError',
+                'transitionRegLoss',
+                'transitionGanLoss',
+                'rewardRegLoss',
+                'rewardGanLoss',
                 'discLoss',
-                'discModelLoss',
+                'doneLoss',
                 ]
 
         self._summary_info = {f:[] for f in self._summary_fields}
