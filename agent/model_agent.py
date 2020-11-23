@@ -14,7 +14,8 @@ class ModelAgent:
             model_hidden_size: List,
             reward_hidden_size: List,
             done_hidden_size: List, 
-            model_reward: bool):
+            predict_reward: bool,
+            predict_done: bool):
 
         self._device_id = device_id
 
@@ -32,15 +33,21 @@ class ModelAgent:
 
         # output logits for sigmoid
         self._done_mlp = MLP(
-                BufferFields['state']+BufferFields['action'],
+                BufferFields['state']+BufferFields['action']+BufferFields['next_state'],
                 done_hidden_size,
                 1).to(device_id)
 
         self.transition = self._transition
-        if model_reward:
+
+        if predict_reward:
             self.reward = self._reward
         else:
             self.reward = None
+
+        if predict_done:
+            self.done = self._done
+        else:
+            self.done = None
 
     def transition_params(self):
         return self._transition_mlp.parameters()
@@ -67,13 +74,11 @@ class ModelAgent:
         dist = td.independent.Independent(normal, 1)
         return dist
 
-    def done(self, state, action):
-        logits = self._done_mlp(torch.cat((state, action), dim=1))
+    def _done(self, state, action, next_state):
+        logits = self._done_mlp(torch.cat((state, action, next_state), dim=1))
         pred = logits.clone()
         pred[pred>0] = True
         pred[pred<=0] = False
         return logits, pred 
-
-
 
 

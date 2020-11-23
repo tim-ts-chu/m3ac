@@ -222,16 +222,7 @@ class MiniBatchRL:
                 with torch.no_grad():
                     # collect samples
                     mu, log_std, action, log_pi = self._sac_agent.pi(obs)
-                    #random_action = torch.rand(BufferFields['action'])*2-1
-                    #next_obs, r, d, info = self._env.step(random_action.view(BufferFields['action']), run_for_n_step=1)
                     next_obs, r, d, info = self._env.step(action.detach().to('cpu').view(BufferFields['action']))
-                    # FIXME debug
-                    fake_r = self._fake_env._get_rewared(
-                            obs.to(self.device_id),
-                            action.to(self.device_id),
-                            next_obs.to(self.device_id))
-                    #print(f"real_r: {r}, fake_r: {fake_r}")
-                    #import IPython; IPython.embed()
                     cumulative_reward += r*(self._sac_algo.discount**traj_len)
 
                     self._real_buffer.push(
@@ -269,14 +260,9 @@ class MiniBatchRL:
                 optim_info = self._sac_algo.optimize_agent(samples, train_step)
                 if self._summary_manager: self._summary_manager.update(optim_info)
 
-                # optimize model using discriminator
-                # optim_info = self._disc_algo.optimize_model_agent(self._batch_size, train_step)
-                # if self._summary_manager: self._summary_manager.update(optim_info)
-
                 # optimize discriminator
                 optim_info = self._disc_algo.optimize_agent(self._batch_size, 1, train_step)
                 if self._summary_manager: self._summary_manager.update(optim_info)
-
 
                 if train_step % self._log_interval == 0:
                     if self._summary_manager:

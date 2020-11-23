@@ -105,7 +105,6 @@ class SummaryManager:
         '''
         Dump collected data into tensorboard
         '''
-        #import IPython; IPython.embed()
         for k, v in self._summary_info.items():
             if v:
                 vals = np.asarray(v)

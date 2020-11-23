@@ -43,7 +43,8 @@ def main(args: argparse.Namespace):
                 'discount': 1,
                 },
             'model_agent': {
-                'model_reward': True,
+                'predict_reward': True,
+                'predict_done': False,
                 'model_hidden_size': [256, 256],
                 'reward_hidden_size': [256, 256],
                 'done_hidden_size': [256, 256],

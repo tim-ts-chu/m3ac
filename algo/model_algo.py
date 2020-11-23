@@ -48,6 +48,7 @@ class ModelAlgorithm:
         optim_info['rewardRegLoss'] = []
         optim_info['rewardGanLoss'] = []
         optim_info['doneLoss'] = []
+
         optim_info['transitionError'] = []
         optim_info['rewardError'] = []
         optim_info['doneError'] = []
@@ -88,77 +89,71 @@ class ModelAlgorithm:
             self._reward_optimizer.zero_grad()
             self._done_optimizer.zero_grad()
             
+            # fake env will clamp abnormal state
             #next_state, reward, done, _ = self._fake_env.step(real_samples['state'], real_samples['action'])
 
-            # imagine next_state_diff, reward, done
+            # transition loss
             next_state_diff_dist = self._model_agent.transition(real_samples['state'], real_samples['action'])
-            reward_dist = self._model_agent.reward(
-                    real_samples['state'], real_samples['action'], real_samples['next_state'])
-            done_logits, done_pred = self._model_agent.done(real_samples['state'], real_samples['action'])
-
-            next_state = real_samples['state'] + next_state_diff_dist.rsample()
-            reward = reward_dist.rsample()
-            done = done_pred
-            #reward_sample = real_samples['reward']
-            #done_sample = real_samples['done']
-
-            next_state_error = (next_state - real_samples['next_state']).abs().sum()/batch_size
-            reward_error = (reward - real_samples['reward']).abs().sum()/batch_size
-            done_error = (done - real_samples['done']).abs().sum()/batch_size
-
+            next_state_pred = real_samples['state'] + next_state_diff_dist.rsample()
+            next_state_error = (next_state_pred - real_samples['next_state']).abs().sum()/batch_size
             optim_info['transitionError'].append(next_state_error)
-            optim_info['rewardError'].append(reward_error)
-            optim_info['doneError'].append(done_error)
 
-            # model regression loss (mean square error)
-            # transition_reg_loss = torch.mean((next_state_sample - real_samples['next_state']).square())
-            # reward_reg_loss = torch.mean((reward_sample - real_samples['reward']).square())
-            transition_reg_loss = F.mse_loss(next_state, real_samples['next_state'])
-            done_loss = F.binary_cross_entropy_with_logits(done_logits, real_samples['done'])
-            
-            # model gan loss
+            transition_reg_loss = F.mse_loss(next_state_pred, real_samples['next_state'])
+
             # logits, pred = self._disc_agent.discriminate(
                     # real_samples['state'],
                     # real_samples['action'], # TODO how should we use the record action? or use current policy to decide?
                     # real_samples['reward'],
                     # real_samples['done'], # FIXME how to backprop?
                     # next_state_sample)
-
             # labels = torch.ones(batch_size).view(-1,1).to(self._device_id)
             # transition_gan_loss = F.binary_cross_entropy_with_logits(logits, labels)
             transition_gan_loss = 0
 
+            optim_info['transitionRegLoss'].append(transition_reg_loss)
+            optim_info['transitionGanLoss'].append(transition_gan_loss)
+
+            # reward loss
             if not self._model_agent.reward:
                 reward_reg_loss = 0
                 reward_gan_loss = 0
             else:
-                # reward regression loss
+                reward_dist = self._model_agent.reward(
+                        real_samples['state'], real_samples['action'], real_samples['next_state'])
+                reward_pred = reward_dist.rsample()
+                reward_error = (reward_pred - real_samples['reward']).abs().sum()/batch_size
+                optim_info['rewardError'].append(reward_error)
                 reward_reg_loss = F.mse_loss(reward, real_samples['reward'])
+                reward_gan_loss = 0 # TODO only discriminate on transition at this point
 
-                # FIXME only discriminate on transition at this point
-                reward_gan_loss = 0
+            optim_info['rewardRegLoss'].append(reward_reg_loss)
+            optim_info['rewardGanLoss'].append(reward_gan_loss)
+
+            # done loss
+            if not self._model_agent.done:
+                done_loss = 0
+            else:
+                done_logits, done_pred = self._model_agent.done(
+                        real_samples['state'], real_samples['action'], real_samples['next_state'])
+                done_error = (done_pred - real_samples['done']).abs().sum()/batch_size
+                optim_info['doneError'].append(done_error)
+                done_loss = F.binary_cross_entropy_with_logits(done_logits, real_samples['done'])
+            
+            optim_info['doneLoss'].append(done_loss)
 
             # weighted sum total loss
-            # total_loss = \
-                    # self._transition_reg_loss_weight * transition_reg_loss + \
-                    # self._reward_reg_loss_weight * reward_reg_loss + \
-                    # self._transition_gan_loss_weight * transition_gan_loss + \
-                    # self._reward_gan_loss_weight * reward_gan_loss
+            total_loss = \
+                    self._transition_reg_loss_weight * transition_reg_loss + \
+                    self._reward_reg_loss_weight * reward_reg_loss + \
+                    self._transition_gan_loss_weight * transition_gan_loss + \
+                    self._reward_gan_loss_weight * reward_gan_loss + \
+                    done_loss
 
-            # total_loss.backward()
-            transition_reg_loss.backward()
-            reward_reg_loss.backward()
-            done_loss.backward()
+            total_loss.backward()
 
             self._transition_optimizer.step()
             self._reward_optimizer.step()
             self._done_optimizer.step()
-            
-            optim_info['transitionRegLoss'].append(transition_reg_loss)
-            optim_info['transitionGanLoss'].append(transition_gan_loss)
-            optim_info['rewardRegLoss'].append(reward_reg_loss)
-            optim_info['rewardGanLoss'].append(reward_gan_loss)
-            optim_info['doneLoss'].append(done_loss)
 
         return optim_info
 
@@ -166,15 +161,8 @@ class ModelAlgorithm:
         real_samples = self._real_buffer.sample(batch_size, self._device_id)
         state = real_samples['state']
         with torch.no_grad():
-            #random_action = torch.rand(BufferFields['action'])*2-1
             _, _, action, _ = self._policy_agent.pi(state)
             next_state, reward, done, info = self._fake_env.step(state, action)
-
-            # next_state_diff_dist = self._model_agent.transition(real_samples['state'], action)
-            # next_state_sample = real_samples['state'] + next_state_diff_dist.sample()
-            # reward_dist = self._model_agent.reward(real_samples['state'], action) 
-            # reward = reward_dist.sample()
-            # done_logits, done_pred = self._model_agent.done(real_samples['state'], action)
 
             samples = {}
             samples['state'] = state
