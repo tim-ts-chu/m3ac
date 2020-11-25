@@ -123,7 +123,7 @@ class ModelAlgorithm:
                 reward_pred = reward_dist.rsample()
                 reward_error = (reward_pred - real_samples['reward']).abs().sum()/batch_size
                 optim_info['rewardError'].append(reward_error)
-                reward_reg_loss = F.mse_loss(reward, real_samples['reward'])
+                reward_reg_loss = F.mse_loss(reward_pred, real_samples['reward'])
                 reward_gan_loss = 0 # TODO only discriminate on transition at this point
 
             optim_info['rewardRegLoss'].append(reward_reg_loss)
@@ -131,7 +131,7 @@ class ModelAlgorithm:
 
             # done loss
             if not self._model_agent.done:
-                done_loss = 0
+                done_loss = torch.tensor(0.0, requires_grad=True)
             else:
                 done_logits, done_pred = self._model_agent.done(
                         real_samples['state'], real_samples['action'], real_samples['next_state'])
@@ -142,14 +142,17 @@ class ModelAlgorithm:
             optim_info['doneLoss'].append(done_loss)
 
             # weighted sum total loss
-            total_loss = \
-                    self._transition_reg_loss_weight * transition_reg_loss + \
-                    self._reward_reg_loss_weight * reward_reg_loss + \
-                    self._transition_gan_loss_weight * transition_gan_loss + \
-                    self._reward_gan_loss_weight * reward_gan_loss + \
-                    done_loss
+            # total_loss = \
+                    # self._transition_reg_loss_weight * transition_reg_loss + \
+                    # self._reward_reg_loss_weight * reward_reg_loss + \
+                    # self._transition_gan_loss_weight * transition_gan_loss + \
+                    # self._reward_gan_loss_weight * reward_gan_loss + \
+                    # done_loss
 
-            total_loss.backward()
+            # total_loss.backward()
+            transition_reg_loss.backward()
+            reward_reg_loss.backward()
+            done_loss.backward()
 
             self._transition_optimizer.step()
             self._reward_optimizer.step()

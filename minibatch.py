@@ -196,11 +196,13 @@ class MiniBatchRL:
         '''
         obs = self._env.reset()
         cumulative_reward = 0
+        cumulative_discounted_reward = 0
         traj_len = 1
+        use_init_std = True
 
         # evaluate initial performance
-        # self._logger.info('Initial evaluation!')
-        # self._evaluation(0)
+        self._logger.info('Initial evaluation!')
+        self._evaluation(0)
         if self._world_size > 1:
             dist.barrier() # sync before begin
         self._logger.info('Training is begin!')
@@ -221,9 +223,10 @@ class MiniBatchRL:
 
                 with torch.no_grad():
                     # collect samples
-                    mu, log_std, action, log_pi = self._sac_agent.pi(obs)
+                    mu, log_std, action, log_pi = self._sac_agent.pi(obs, use_init_std)
                     next_obs, r, d, info = self._env.step(action.detach().to('cpu').view(BufferFields['action']))
-                    cumulative_reward += r*(self._sac_algo.discount**traj_len)
+                    cumulative_reward += r
+                    cumulative_discounted_reward += r*(self._sac_algo.discount**traj_len)
 
                     self._real_buffer.push(
                             state=obs.detach(),
@@ -238,31 +241,35 @@ class MiniBatchRL:
 
                 if d or traj_len >= self._max_steps:
                     # terminate trajectory
-                    if self._summary_manager: self._summary_manager.update_traj_info(cumulative_reward, traj_len)
+                    if self._summary_manager: self._summary_manager.update_traj_info(
+                            cumulative_reward, cumulative_discounted_reward, traj_len)
                     traj_len = 1
                     cumulative_reward = 0
+                    cumulative_discounted_reward = 0
                     obs = self._env.reset()
                 else:
                     traj_len += 1
                     obs = next_obs
 
-                if self._real_buffer.size < self._batch_size:
-                #if self._real_buffer.size < 10240: # late start
+                #if self._real_buffer.size < self._batch_size:
+                if self._real_buffer.size < 10240: # late start
                    continue # haven't collected enough data yet, skip optimization
+                else:
+                    use_init_std = False
 
                 # optimize model
-                optim_info = self._model_algo.optimize_agent(self._batch_size, 10, train_step)
-                if self._summary_manager: self._summary_manager.update(optim_info)
+                # optim_info = self._model_algo.optimize_agent(self._batch_size, 10, train_step)
+                # if self._summary_manager: self._summary_manager.update(optim_info)
 
                 # optimize policy agent
-                #samples = self._real_buffer.sample(self._batch_size)
-                samples = self._model_algo.generate_samples(self._batch_size)
+                samples = self._real_buffer.sample(self._batch_size)
+                # samples = self._model_algo.generate_samples(self._batch_size)
                 optim_info = self._sac_algo.optimize_agent(samples, train_step)
                 if self._summary_manager: self._summary_manager.update(optim_info)
 
                 # optimize discriminator
-                optim_info = self._disc_algo.optimize_agent(self._batch_size, 1, train_step)
-                if self._summary_manager: self._summary_manager.update(optim_info)
+                # optim_info = self._disc_algo.optimize_agent(self._batch_size, 1, train_step)
+                # if self._summary_manager: self._summary_manager.update(optim_info)
 
                 if train_step % self._log_interval == 0:
                     if self._summary_manager:
@@ -275,7 +282,7 @@ class MiniBatchRL:
             # evaluate performance for each round
             if self._world_size > 1:
                 dist.barrier() # sync after each round and before evaluation
-            # self._evaluation(train_step)
+            self._evaluation(train_step)
             traj_len = 0
             cumulative_reward = 0
             obs = self._env.reset()
@@ -294,26 +301,27 @@ class MiniBatchRL:
         total_trajs = 0
         success_trajs = 0
         cumulative_reward = 0
+        cumulative_discounted_reward = 0
         obs = self._env.reset()
         movie_images.append(self._env.render())
-        #self._sac_agent.eval_mode(True)
+        self._sac_agent.eval_mode(True)
         for eval_step in self._tqdm_wrapper(1, self._eval_n_steps+1):
-            #import IPython; IPython.embed()
-            # random_action = torch.rand(BufferFields['action'])*2-1
-            # next_obs, r, d, info = self._env.step(random_action.view(BufferFields['action']), run_for_n_step=2)
             _, _, action, _ = self._sac_agent.pi(obs.to(torch.float32).view(1, -1))
             next_obs, r, d, info = self._env.step(action.detach().to('cpu').view(BufferFields['action']))
-            cumulative_reward += r*(self._sac_algo.discount**traj_len)
+            cumulative_reward += r
+            cumulative_discounted_reward += r*(self._sac_algo.discount**traj_len)
             movie_images.append(self._env.render(
                 step_reward=r,
                 cumulative_reward=cumulative_reward))
 
             if d or traj_len >= self._eval_max_steps:
                 # terminate trajectory
-                if self._summary_manager: self._summary_manager.update_eval_traj_info(cumulative_reward, traj_len)
+                if self._summary_manager: self._summary_manager.update_eval_traj_info(
+                        cumulative_reward, cumulative_discounted_reward, traj_len)
                 traj_len = 1
                 total_trajs += 1
                 cumulative_reward = 0
+                cumulative_discounted_reward = 0
                 obs = self._env.reset()
                 movie_images.append(self._env.render())
             else:

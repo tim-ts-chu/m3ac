@@ -37,6 +37,7 @@ class SummaryManager:
                 'q2GradNorm',
                 # update each traj
                 'CumReward',
+                'CumDiscountedReward',
                 'TrajLength',
                 # update each step
                 'q1',
@@ -47,6 +48,7 @@ class SummaryManager:
                 'StepReturn',
                 # update each evaluation traj
                 'EvalCumReward',
+                'EvalCumDiscountedReward',
                 'EvalTrajLength',
                 # update each evaluation step
                 'EvalStepReturn',
@@ -137,12 +139,14 @@ class SummaryManager:
 
     def update_traj_info(self,
             CumReward: float,
+            CumDiscountedReward: float,
             TrajLength: int) -> None:
         '''
         Should be called at each trajectory finished.
         '''
         self.update({
             'CumReward': CumReward,
+            'CumDiscountedReward': CumDiscountedReward,
             'TrajLength': TrajLength})
 
     def update_eval_step_info(self,
@@ -154,10 +158,12 @@ class SummaryManager:
 
     def update_eval_traj_info(self,
             EvalCumReward: float,
+            EvalCumDiscountedReward: float,
             EvalTrajLength: int) -> None:
         '''
         Should be called at each evaluation trajectory finished.
         '''
         self.update({
             'EvalCumReward': EvalCumReward,
+            'EvalCumDiscountedReward': EvalCumDiscountedReward,
             'EvalTrajLength': EvalTrajLength})

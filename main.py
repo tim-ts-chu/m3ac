@@ -27,8 +27,9 @@ def main(args: argparse.Namespace):
 
     params = {
             'env': {
-                'id': 'Hopper-v2'
-                #'id': 'HalfCheetah-v2'
+                #'id': 'Hopper-v2'
+                'id': 'HalfCheetah-v2'
+                #'id': 'Walker2d-v2'
                 #'id': 'Ant-v2'
                 },
             'replay_buffer': {
@@ -40,7 +41,6 @@ def main(args: argparse.Namespace):
                 'q_hidden_size': [256, 256]
                 },
             'sac_algo': {
-                'discount': 1,
                 },
             'model_agent': {
                 'predict_reward': True,
@@ -64,9 +64,9 @@ def main(args: argparse.Namespace):
                 'n_steps': int(1e6),
                 'max_steps': int(1e3),
                 'log_interval': int(1e3),
-                'eval_interval': int(1e4),
-                'eval_n_steps': int(1e3),
-                'eval_max_steps': int(1e3),
+                'eval_interval': int(1e5),
+                'eval_n_steps': int(51e3),
+                'eval_max_steps': int(51e3),
                 'batch_size': int(256)
                 },
             'other_info': {   # dumping some information for the record only, not really params
@@ -76,7 +76,8 @@ def main(args: argparse.Namespace):
                 'task_name': task_name,
                 'world_size': world_size,
                 'multiprocesses': multiprocess,
-                'other_comments': 'no fake env, model reward, trans reg loss, no next_s to reward'
+                'other_comments': 'exp on plain sac'
+                # 'other_comments': 'plain SAC'
                 },
             }
 

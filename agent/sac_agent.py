@@ -12,14 +12,18 @@ class Gaussian:
     Tanh squashed Gaussian Distribution
     '''
 
-    def __init__(self, mean: torch.Tensor, log_std: torch.Tensor, squash: bool=True):
+    def __init__(self, mean: torch.Tensor, log_std: torch.Tensor, squash: bool=True, eval_mode: bool=False):
         self._mean = mean
         min_log_std = -20
         max_log_std = 2
         self._log_std = torch.clamp(log_std,
                 min=min_log_std,
                 max=max_log_std)
-        self._std = torch.exp(self._log_std)
+        if eval_mode:
+            self._std = 0
+        else:
+            self._std = torch.exp(self._log_std)
+
         self._dim = mean.shape[1]
         self._squash = squash
 
@@ -101,6 +105,7 @@ class SACAgent:
         self._logger.info(self._q2_target)
 
         self._eval_mode = False
+        self._init_policy_std = 0.75
 
     def eval_mode(self, eval_mode: bool) -> None:
         '''
@@ -131,13 +136,15 @@ class SACAgent:
         '''
         return self._q2.parameters()
 
-    def pi(self, state: torch.Tensor) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]:
+    def pi(self, state: torch.Tensor, use_init_std: bool=False) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]:
         '''
         Sample an action using policy net and gaussian distribution
         '''
         state = state.to(self._device_id)
         mu, log_std = self._pi(state)
-        distribution = Gaussian(mu, log_std)
+        if use_init_std:
+            log_std = torch.ones_like(log_std)*self._init_policy_std
+        distribution = Gaussian(mu, log_std, eval_mode=self._eval_mode)
         action, log_pi = distribution.sample()
         return mu, log_std, action, log_pi
 

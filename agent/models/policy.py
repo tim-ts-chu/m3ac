@@ -12,7 +12,7 @@ class MLP(torch.nn.Module):
         input_size: int,
         hidden_sizes: List,
         output_size: int,
-        activation: torch.nn.Module=torch.nn.LeakyReLU,
+        activation: torch.nn.Module=torch.nn.ReLU,
         output_layer=None):
         super().__init__()
 
@@ -50,7 +50,7 @@ class PolicyNetwork(torch.nn.Module):
                 input_size=state_size,
                 hidden_sizes=hidden_sizes,
                 output_size=action_size*2,
-                activation=torch.nn.LeakyReLU)
+                activation=torch.nn.ReLU)
 
     def forward(self, state: torch.Tensor) -> Tuple[torch.Tensor, torch.Tensor]:
         '''
@@ -77,7 +77,7 @@ class QNetwork(torch.nn.Module):
                 input_size=state_size+action_size,
                 hidden_sizes=hidden_sizes,
                 output_size=1,
-                activation=torch.nn.LeakyReLU)
+                activation=torch.nn.ReLU)
 
     def forward(self, state: torch.Tensor, action: torch.Tensor) -> torch.Tensor:
         '''
