@@ -23,19 +23,22 @@ class ModelAgent:
         self._transition_mlp = MLP(
                 BufferFields['state']+BufferFields['action'],
                 model_hidden_size,
-                BufferFields['state']*2).to(device_id)
+                BufferFields['state']*2,
+                torch.nn.LeakyReLU).to(device_id)
 
         # output gaussian mean, std
         self._reward_mlp = MLP(
                 BufferFields['state']+BufferFields['action']+BufferFields['next_state'],
                 reward_hidden_size,
-                2).to(device_id)
+                2,
+                torch.nn.LeakyReLU).to(device_id)
 
         # output logits for sigmoid
         self._done_mlp = MLP(
                 BufferFields['state']+BufferFields['action']+BufferFields['next_state'],
                 done_hidden_size,
-                1).to(device_id)
+                1,
+                torch.nn.LeakyReLU).to(device_id)
 
         self.transition = self._transition
 

@@ -27,10 +27,10 @@ def main(args: argparse.Namespace):
 
     params = {
             'env': {
-                #'id': 'Hopper-v2'
+                # 'id': 'Hopper-v2'
                 'id': 'HalfCheetah-v2'
-                #'id': 'Walker2d-v2'
-                #'id': 'Ant-v2'
+                # 'id': 'Walker2d-v2'
+                # 'id': 'Ant-v2'
                 },
             'replay_buffer': {
                 'buffer_size': int(1e6),
@@ -44,7 +44,7 @@ def main(args: argparse.Namespace):
                 },
             'model_agent': {
                 'predict_reward': True,
-                'predict_done': False,
+                'predict_done': True,
                 'model_hidden_size': [256, 256],
                 'reward_hidden_size': [256, 256],
                 'done_hidden_size': [256, 256],
@@ -65,8 +65,8 @@ def main(args: argparse.Namespace):
                 'max_steps': int(1e3),
                 'log_interval': int(1e3),
                 'eval_interval': int(1e5),
-                'eval_n_steps': int(51e3),
-                'eval_max_steps': int(51e3),
+                'eval_n_steps': int(1e3),
+                'eval_max_steps': int(1e3),
                 'batch_size': int(256)
                 },
             'other_info': {   # dumping some information for the record only, not really params
@@ -76,8 +76,7 @@ def main(args: argparse.Namespace):
                 'task_name': task_name,
                 'world_size': world_size,
                 'multiprocesses': multiprocess,
-                'other_comments': 'exp on plain sac'
-                # 'other_comments': 'plain SAC'
+                'other_comments': 'sac or predict_done'
                 },
             }
 

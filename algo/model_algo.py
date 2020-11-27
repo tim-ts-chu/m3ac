@@ -54,33 +54,32 @@ class ModelAlgorithm:
         optim_info['doneError'] = []
 
         # calculate multi-step error
-        max_steps = 20
-        multisteps_errors = {}
-        sample_seq = self._real_buffer.sample_sequence(batch_size, max_steps, self._device_id)
-        current_state = sample_seq['state'][:, 0, :]
-        done_mask = torch.ones(batch_size, 1, device=self._device_id) # (b, 1)
-        with torch.no_grad():
-            for t in range(max_steps):
-                mu, log_std, action, log_pi = self._policy_agent.pi(current_state)
-                next_state_diff_dist = self._model_agent.transition(current_state, action)
-                next_state_pred = current_state + next_state_diff_dist.sample()
+        # max_steps = 20
+        # multisteps_errors = {}
+        # sample_seq = self._real_buffer.sample_sequence(batch_size, max_steps, self._device_id)
+        # current_state = sample_seq['state'][:, 0, :]
+        # done_mask = torch.ones(batch_size, 1, device=self._device_id) # (b, 1)
+        # with torch.no_grad():
+            # for t in range(max_steps):
+                # mu, log_std, action, log_pi = self._policy_agent.pi(current_state)
+                # next_state_diff_dist = self._model_agent.transition(current_state, action)
+                # next_state_pred = current_state + next_state_diff_dist.sample()
 
-                done_mask[sample_seq['done'][:, t, :]>0.5] = 0  # (b, 1)
-                next_state_real = sample_seq['next_state'][:, t, :]
-                square_errors = (next_state_real-next_state_pred).square()*done_mask
-                if torch.sum(done_mask) > 0.5:
-                    multisteps_errors[t] = torch.clamp(square_errors, 0, 1000).sum()/torch.sum(done_mask)
-                else:
-                    # not episode left in the batch
-                    multisteps_errors[t] = 0
+                # done_mask[sample_seq['done'][:, t, :]>0.5] = 0  # (b, 1)
+                # next_state_real = sample_seq['next_state'][:, t, :]
+                # square_errors = (next_state_real-next_state_pred).square()*done_mask
+                # if torch.sum(done_mask) > 0.5:
+                    # multisteps_errors[t] = torch.clamp(square_errors, 0, 1000).sum()/torch.sum(done_mask)
+                # else:
+                    # multisteps_errors[t] = 0
                 
-                current_state = next_state_pred
+                # current_state = next_state_pred
 
-        optim_info['transitionError-1'] = multisteps_errors[0]
-        optim_info['transitionError-3'] = multisteps_errors[2]
-        optim_info['transitionError-5'] = multisteps_errors[4]
-        optim_info['transitionError-10'] = multisteps_errors[9]
-        optim_info['transitionError-20'] = multisteps_errors[19]
+        # optim_info['transitionError-1'] = multisteps_errors[0]
+        # optim_info['transitionError-3'] = multisteps_errors[2]
+        # optim_info['transitionError-5'] = multisteps_errors[4]
+        # optim_info['transitionError-10'] = multisteps_errors[9]
+        # optim_info['transitionError-20'] = multisteps_errors[19]
         
         for it in range(num_iter):
             real_samples = self._real_buffer.sample(batch_size, self._device_id)

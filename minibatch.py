@@ -185,7 +185,7 @@ class MiniBatchRL:
         '''
         state_dim = self._env.observation_space.shape[0]
         action_dim = self._env.action_space.shape[0]
-        set_buffer_dim(state_dim, action_dim, 1, 1)
+        set_buffer_dim(state_dim, action_dim, 1, 1, 1)
         self._logger.info('state dim:{}, action dim:{}'.format(state_dim, action_dim))
 
     def _train(self, rank: int, world_size: int, params: Dict) -> None:
@@ -201,8 +201,8 @@ class MiniBatchRL:
         use_init_std = True
 
         # evaluate initial performance
-        self._logger.info('Initial evaluation!')
-        self._evaluation(0)
+        # self._logger.info('Initial evaluation!')
+        # self._evaluation(0)
         if self._world_size > 1:
             dist.barrier() # sync before begin
         self._logger.info('Training is begin!')
@@ -228,7 +228,13 @@ class MiniBatchRL:
                     cumulative_reward += r
                     cumulative_discounted_reward += r*(self._sac_algo.discount**traj_len)
 
+                    if d or traj_len >= self._max_steps:
+                        traj_end = True
+                    else:
+                        traj_end = False
+
                     self._real_buffer.push(
+                            seq_end=traj_end,
                             state=obs.detach(),
                             action=action.detach(),
                             reward=r.detach().view(1, -1),
@@ -239,8 +245,7 @@ class MiniBatchRL:
                     if self._summary_manager: self._summary_manager.update_step_info(
                             q1, q2, q1-q2, log_std[:, 0], log_std[:, 1], r)
 
-                if d or traj_len >= self._max_steps:
-                    # terminate trajectory
+                if traj_end:
                     if self._summary_manager: self._summary_manager.update_traj_info(
                             cumulative_reward, cumulative_discounted_reward, traj_len)
                     traj_len = 1
@@ -258,12 +263,12 @@ class MiniBatchRL:
                     use_init_std = False
 
                 # optimize model
-                # optim_info = self._model_algo.optimize_agent(self._batch_size, 10, train_step)
-                # if self._summary_manager: self._summary_manager.update(optim_info)
+                optim_info = self._model_algo.optimize_agent(self._batch_size, 10, train_step)
+                if self._summary_manager: self._summary_manager.update(optim_info)
 
                 # optimize policy agent
-                samples = self._real_buffer.sample(self._batch_size)
-                # samples = self._model_algo.generate_samples(self._batch_size)
+                # samples = self._real_buffer.sample(self._batch_size)
+                samples = self._model_algo.generate_samples(self._batch_size)
                 optim_info = self._sac_algo.optimize_agent(samples, train_step)
                 if self._summary_manager: self._summary_manager.update(optim_info)
 
@@ -282,7 +287,7 @@ class MiniBatchRL:
             # evaluate performance for each round
             if self._world_size > 1:
                 dist.barrier() # sync after each round and before evaluation
-            self._evaluation(train_step)
+            # self._evaluation(train_step)
             traj_len = 0
             cumulative_reward = 0
             obs = self._env.reset()

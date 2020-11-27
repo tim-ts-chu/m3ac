@@ -8,14 +8,16 @@ BufferFields = {
         'reward': None,
         'done': None,
         'next_state': None,
+        'end': None,
         }
 
-def set_buffer_dim(state_dim, action_dim, reward_dim, done_dim):
+def set_buffer_dim(state_dim, action_dim, reward_dim, done_dim, end_dim):
     BufferFields['state'] = state_dim
     BufferFields['action'] = action_dim
     BufferFields['reward'] = reward_dim
     BufferFields['done'] = done_dim
     BufferFields['next_state'] = state_dim
+    BufferFields['end'] = end_dim
 
 class ReplayBuffer:
     '''
@@ -34,6 +36,8 @@ class ReplayBuffer:
         self._buffer = {}
         self._curr_size = 0
         self._write_idx = 0
+        self._writing = False
+        self._writing_range = [0, 0] # (from, to)
 
         # initialize buffer for each field
         for name in BufferFields.keys():
@@ -44,15 +48,30 @@ class ReplayBuffer:
     def size(self) -> int:
         return self._curr_size
 
-    def push(self, **kwargs) -> None:
+    def push(self, seq_end: bool, **kwargs) -> None:
         '''
         Push a data record into replay buffer
+        @param new_seq indicator for starting a new sequence
         '''
+
         if kwargs.keys() != BufferFields.keys():
             raise RuntimeError(f'push data into an unexisting field: {kwargs.keys()}!={BufferFields.keys()}')
 
         for field in BufferFields.keys():
             self._buffer[field][self._write_idx, :] = kwargs[field]
+
+        if not self._writing:
+            # new sequence
+            self._writing_range = [self._write_idx, self._write_idx] # (from, to)
+        else:
+            if self._write_idx == self._writing_range[0]:
+                raise RuntimeError('Writing a sequence longer than the buffer size')
+            self._writing_range[1] = self._write_idx
+
+        if seq_end:
+            self._writing = False
+        else:
+            self._writing = True
 
         self._write_idx += 1
         if self._write_idx >= self._buffer_size:
@@ -90,14 +109,32 @@ class ReplayBuffer:
             self._write_idx = remain_idx
             self._curr_size = self._buffer_size
 
-    def sample(self, batch_size: int, device_id=None) -> torch.Tensor:
+    def sample(self, batch_size: int, device_id=None, index_only=False) -> torch.Tensor:
         '''
         Sample number of batch size data from replay buffer
         '''
         if batch_size > self._curr_size:
             raise RuntimeError(f'batch_size [{batch_size}] is larger than current data count [{self._curr_size}].')
 
-        indeces = torch.randint(0, self._curr_size, (batch_size,))
+        if self._writing:
+            if self._writing_range[0] <= self._writing_range[1]:
+                # writing is not circling
+                seq_len = self._writing_range[1] - self._writing_range[0] + 1
+                low = 0
+                high = self._curr_size - seq_len
+                indeces = torch.randint(low, high, (batch_size,))
+                indeces[indeces>=self._writing_range[0]] += seq_len
+            else:
+                # writing is circling
+                low = self._writing_range[1] + 1
+                high = self._writing_range[0]
+                indeces = torch.randint(low, high, (batch_size,))
+        else:
+            indeces = torch.randint(0, self._curr_size, (batch_size,))
+
+        if index_only:
+            return indeces
+
         samples = {}
         for field in BufferFields.keys():
             if device_id is not None:
@@ -129,32 +166,23 @@ class ReplayBuffer:
         for field in BufferFields.keys():
             samples[field] = torch.zeros(batch_size, max_steps, BufferFields[field], dtype=self._dtype, device=device)
 
-        # fill buffer by done flag
+        # fill buffer by sequence according to end flag
         buffer_indeces = torch.arange(batch_size)
-        sample_indeces = torch.randint(0, self._curr_size, (batch_size,))
+        sample_indeces = self.sample(batch_size, index_only=True)
         for t in range(max_steps):
             for field in BufferFields.keys():
                 samples[field][buffer_indeces, t, :] = self._buffer[field][sample_indeces,:].to(device)
 
             # handle terminated sequence
-            done_mask = (samples['done'][buffer_indeces,t,:] < 0.5).view(-1) # done is saved as 1. or 0. in float
+            valid_mask = (samples['end'][buffer_indeces,t,:] < 0.5).view(-1) # end is saved as 1. or 0. in float
 
-            if done_mask.sum() < 1:
+            if valid_mask.sum() < 1:
+                # short cut for all sequences have ended
                 break
 
-            buffer_indeces = buffer_indeces[done_mask]
-            sample_indeces = sample_indeces[done_mask] + 1
+            buffer_indeces = buffer_indeces[valid_mask]
+            sample_indeces = sample_indeces[valid_mask] + 1
             sample_indeces[sample_indeces>=self._buffer_size] -= self._buffer_size # circling if need
 
         return samples
-
-
-
-
-
-
-
-
-
-
 
