@@ -22,7 +22,8 @@ class ModelAlgorithm:
             transition_reg_loss_weight: float,
             transition_gan_loss_weight: float,
             reward_reg_loss_weight: float,
-            reward_gan_loss_weight: float):
+            reward_gan_loss_weight: float,
+            h_step_loss: int):
 
         self._device_id = device_id
         self._real_buffer = real_buffer
@@ -36,6 +37,8 @@ class ModelAlgorithm:
         self._transition_gan_loss_weight = transition_gan_loss_weight
         self._reward_reg_loss_weight = reward_reg_loss_weight
         self._reward_gan_loss_weight = reward_gan_loss_weight
+
+        self._h_step_loss = h_step_loss
 
         self._transition_optimizer = torch.optim.Adam(model_agent.transition_params(), lr=1e-4)
         self._reward_optimizer = torch.optim.Adam(model_agent.reward_params(), lr=1e-4)
@@ -54,35 +57,33 @@ class ModelAlgorithm:
         optim_info['doneError'] = []
 
         # calculate multi-step error
-        # max_steps = 20
-        # multisteps_errors = {}
-        # sample_seq = self._real_buffer.sample_sequence(batch_size, max_steps, self._device_id)
-        # current_state = sample_seq['state'][:, 0, :]
-        # done_mask = torch.ones(batch_size, 1, device=self._device_id) # (b, 1)
-        # with torch.no_grad():
-            # for t in range(max_steps):
-                # mu, log_std, action, log_pi = self._policy_agent.pi(current_state)
-                # next_state_diff_dist = self._model_agent.transition(current_state, action)
-                # next_state_pred = current_state + next_state_diff_dist.sample()
+        max_steps = 10
+        multisteps_errors = {}
+        sample_seq = self._real_buffer.sample_sequence(batch_size, max_steps, self._device_id)
+        valid_mask = torch.ones(batch_size, 1, device=self._device_id) # (b, 1)
+        current_state = sample_seq['state'][:, 0, :]
+        with torch.no_grad():
+            for t in range(max_steps):
+                next_state_diff_dist = self._model_agent.transition(current_state, sample_seq['action'][:, t, :])
+                next_state_pred = current_state + next_state_diff_dist.sample()
 
-                # done_mask[sample_seq['done'][:, t, :]>0.5] = 0  # (b, 1)
-                # next_state_real = sample_seq['next_state'][:, t, :]
-                # square_errors = (next_state_real-next_state_pred).square()*done_mask
-                # if torch.sum(done_mask) > 0.5:
-                    # multisteps_errors[t] = torch.clamp(square_errors, 0, 1000).sum()/torch.sum(done_mask)
-                # else:
-                    # multisteps_errors[t] = 0
+                valid_mask[sample_seq['end'][:, t, :]>0.5] = 0  # (b, 1)
+                next_state_real = sample_seq['next_state'][:, t, :]
+                if valid_mask.sum() > 0.5:
+                    errors = (next_state_real*valid_mask-next_state_pred*valid_mask).abs().sum()/valid_mask.sum()
+                    multisteps_errors[t] = errors
+                else:
+                    multisteps_errors[t] = 0
                 
-                # current_state = next_state_pred
+                current_state = next_state_pred
 
-        # optim_info['transitionError-1'] = multisteps_errors[0]
-        # optim_info['transitionError-3'] = multisteps_errors[2]
-        # optim_info['transitionError-5'] = multisteps_errors[4]
-        # optim_info['transitionError-10'] = multisteps_errors[9]
-        # optim_info['transitionError-20'] = multisteps_errors[19]
+        optim_info['transitionError-1'] = multisteps_errors[0]
+        optim_info['transitionError-3'] = multisteps_errors[2]
+        optim_info['transitionError-5'] = multisteps_errors[4]
+        optim_info['transitionError-10'] = multisteps_errors[9]
         
         for it in range(num_iter):
-            real_samples = self._real_buffer.sample(batch_size, self._device_id)
+            real_samples = self._real_buffer.sample_sequence(batch_size, self._h_step_loss, self._device_id)
 
             self._transition_optimizer.zero_grad()
             self._reward_optimizer.zero_grad()
@@ -91,13 +92,26 @@ class ModelAlgorithm:
             # fake env will clamp abnormal state
             #next_state, reward, done, _ = self._fake_env.step(real_samples['state'], real_samples['action'])
 
-            # transition loss
-            next_state_diff_dist = self._model_agent.transition(real_samples['state'], real_samples['action'])
-            next_state_pred = real_samples['state'] + next_state_diff_dist.rsample()
-            next_state_error = (next_state_pred - real_samples['next_state']).abs().sum()/batch_size
-            optim_info['transitionError'].append(next_state_error)
+            # n step transition loss
+            h_step_losses = torch.zeros(self._h_step_loss, device=self._device_id, requires_grad=True)
+            valid_mask = torch.ones(batch_size, device=self._device_id, requires_grad=False).bool()
+            h_state = real_samples['state'][:,0,:]
+            for h in range(self._h_step_loss):
+                valid_mask[real_samples['end'][:,h,0]>0.5] = False
+                if valid_mask.sum() < 0.5:
+                    # no more valid sequence
+                    break
+                mask = valid_mask.clone().detach()
 
-            transition_reg_loss = F.mse_loss(next_state_pred, real_samples['next_state'])
+                # calculate loss
+                next_state_diff_dist = self._model_agent.transition(h_state, real_samples['action'][:,h,:])
+                next_state_diff = next_state_diff_dist.rsample()
+                real_state_diff = real_samples['next_state'][:,h,:] - real_samples['state'][:,h,:]
+                h_step_losses[h] = F.mse_loss(next_state_diff[mask,:], real_state_diff[mask,:])
+
+                h_state = torch.clamp((h_state + next_state_diff), -10, 10).detach()
+
+            transition_reg_loss = h_step_losses.sum()/self._h_step_loss
 
             # logits, pred = self._disc_agent.discriminate(
                     # real_samples['state'],
@@ -118,11 +132,11 @@ class ModelAlgorithm:
                 reward_gan_loss = 0
             else:
                 reward_dist = self._model_agent.reward(
-                        real_samples['state'], real_samples['action'], real_samples['next_state'])
+                        real_samples['state'][:,0,:], real_samples['action'][:,0,:], real_samples['next_state'][:,0,:])
                 reward_pred = reward_dist.rsample()
-                reward_error = (reward_pred - real_samples['reward']).abs().sum()/batch_size
+                reward_error = (reward_pred - real_samples['reward'][:,0,:]).abs().sum()/batch_size
                 optim_info['rewardError'].append(reward_error)
-                reward_reg_loss = F.mse_loss(reward_pred, real_samples['reward'])
+                reward_reg_loss = F.mse_loss(reward_pred, real_samples['reward'][:,0,:])
                 reward_gan_loss = 0 # TODO only discriminate on transition at this point
 
             optim_info['rewardRegLoss'].append(reward_reg_loss)
@@ -133,10 +147,10 @@ class ModelAlgorithm:
                 done_loss = torch.tensor(0.0, requires_grad=True)
             else:
                 done_logits, done_pred = self._model_agent.done(
-                        real_samples['state'], real_samples['action'], real_samples['next_state'])
-                done_error = (done_pred - real_samples['done']).abs().sum()/batch_size
+                        real_samples['state'][:,0,:], real_samples['action'][:,0,:], real_samples['next_state'][:,0,:])
+                done_error = (done_pred - real_samples['done'][:,0,:]).abs().sum()/batch_size
                 optim_info['doneError'].append(done_error)
-                done_loss = F.binary_cross_entropy_with_logits(done_logits, real_samples['done'])
+                done_loss = F.binary_cross_entropy_with_logits(done_logits, real_samples['done'][:,0,:])
             
             optim_info['doneLoss'].append(done_loss)
 

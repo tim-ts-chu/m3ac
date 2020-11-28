@@ -126,10 +126,8 @@ class TestReplayBuffer(unittest.TestCase):
 
         # create sequence of data and push
         data_seq_len = [1233, 1043, 542, 231, 120, 53]
-        #data_seq_len = [2, 3, 4, 5]
         testing_data = []
         for seq_len in data_seq_len:
-            # print('seq_len', seq_len)
             for e in range(seq_len):
                 sample = {}
                 for k, dim in BufferFields.items():
@@ -140,7 +138,6 @@ class TestReplayBuffer(unittest.TestCase):
                             sample[k] = torch.zeros((1, dim)) # not end
                     else:
                         sample[k] = torch.rand((1, dim))
-                # print('idx', e, 'sample:', sample)
                 testing_data.append(sample)
                 if e == seq_len - 1:
                     replay_buffer.push(True, **sample)
@@ -163,7 +160,6 @@ class TestReplayBuffer(unittest.TestCase):
             for j in range(sum(data_seq_len)):
                 if torch.equal(sample_seq[key][batch_idx, 0, :].view(1, -1), testing_data[j][key]):
                     data_idx = j
-                    #print('data_idx:', data_idx)
                     break
             else:
                 self.fail('sampled data is not in the testing data')
@@ -201,7 +197,6 @@ class TestReplayBuffer(unittest.TestCase):
 
     def test_sample_sequence_while_writing(self):
         replay_buffer = ReplayBuffer(self._small_buffer_size)
-        #data_seq_len = [1233, 1043, 542, 231, 120, 53]
         data_seq_len = [20, 25, 15]
         writing_seq_len = 30 
         testing_data = []
@@ -249,14 +244,12 @@ class TestReplayBuffer(unittest.TestCase):
             for j in range(sum(data_seq_len)):
                 if torch.equal(sample_seq[key][batch_idx, 0, :].view(1, -1), testing_data[j][key]):
                     data_idx = j
-                    #print('data_idx:', data_idx)
                     break
             else:
                 self.fail('sampled data is not in the complete sequence data')
 
     def test_sample_sequence_while_writing_circling(self):
         replay_buffer = ReplayBuffer(self._small_buffer_size)
-        #data_seq_len = [1233, 1043, 542, 231, 120, 53]
         data_seq_len = [40, 20, 30]
         writing_seq_len = 30 
         testing_data = []
@@ -304,7 +297,6 @@ class TestReplayBuffer(unittest.TestCase):
             for j in range(20, 90):
                 if torch.equal(sample_seq[key][batch_idx, 0, :].view(1, -1), testing_data[j][key]):
                     data_idx = j
-                    #print('data_idx:', data_idx)
                     break
             else:
                 self.fail('sampled data is not in the complete sequence data')

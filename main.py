@@ -16,8 +16,9 @@ def main(args: argparse.Namespace):
     folder_path = '/home/timchu/m3ac/data/'
     task_name = 'm3ac-'+datetime.now().strftime('%m%d-%H,%M,%S,%f-')+str(args.seed)
     multiprocess = False
-    default_device_id = 0       # if world_size is one, then we use default device to run
+    default_device_id = 3       # if world_size is one, then we use default device to run
     random_seed = args.seed     # for reproducibility: default is 0
+    # torch.set_default_tensor_type(torch.DoubleTensor) # set default dtype to torch.float64
 
     if multiprocess:
         device_count = torch.cuda.device_count()
@@ -53,7 +54,8 @@ def main(args: argparse.Namespace):
                 'transition_reg_loss_weight': 1,
                 'reward_reg_loss_weight': 1,
                 'transition_gan_loss_weight': 0,
-                'reward_gan_loss_weight': 0
+                'reward_gan_loss_weight': 0,
+                'h_step_loss': 10
                 },
             'disc_agent': {
                 'hidden_size': [256, 256],
@@ -76,7 +78,7 @@ def main(args: argparse.Namespace):
                 'task_name': task_name,
                 'world_size': world_size,
                 'multiprocesses': multiprocess,
-                'other_comments': 'sac or predict_done'
+                'other_comments': 'multi-step loss'
                 },
             }
 

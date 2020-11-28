@@ -239,7 +239,8 @@ class MiniBatchRL:
                             action=action.detach(),
                             reward=r.detach().view(1, -1),
                             done=d.detach().int(),
-                            next_state=next_obs.detach())
+                            next_state=next_obs.detach(),
+                            end=traj_end)
 
                     q1, q2 = self._sac_agent.q(obs, action)
                     if self._summary_manager: self._summary_manager.update_step_info(
@@ -256,8 +257,9 @@ class MiniBatchRL:
                     traj_len += 1
                     obs = next_obs
 
-                #if self._real_buffer.size < self._batch_size:
+                # if self._real_buffer.size < self._batch_size:
                 if self._real_buffer.size < 10240: # late start
+                # if self._real_buffer.size < 1024: # late start
                    continue # haven't collected enough data yet, skip optimization
                 else:
                     use_init_std = False
