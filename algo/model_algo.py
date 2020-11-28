@@ -93,7 +93,7 @@ class ModelAlgorithm:
             #next_state, reward, done, _ = self._fake_env.step(real_samples['state'], real_samples['action'])
 
             # n step transition loss
-            h_step_losses = torch.zeros(self._h_step_loss, device=self._device_id, requires_grad=True)
+            h_step_losses = torch.zeros(self._h_step_loss, device=self._device_id)
             valid_mask = torch.ones(batch_size, device=self._device_id, requires_grad=False).bool()
             h_state = real_samples['state'][:,0,:]
             for h in range(self._h_step_loss):
