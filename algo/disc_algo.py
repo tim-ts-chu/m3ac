@@ -42,14 +42,20 @@ class DiscriminateAlgorithm:
                 next_state, reward, done, info = self._fake_env.step(real_samples['state'], real_samples['action'])
                 imag_samples['state'] = real_samples['state']
                 imag_samples['action'] = real_samples['action']
-                imag_samples['reward'] = reward
+                imag_samples['reward'] = real_samples['reward'] # TODO use GT reward or predict reward?
                 imag_samples['done'] = real_samples['done']
                 imag_samples['next_state'] = next_state
 
             samples = {}
             for k in BufferFields.keys():
+                if k == 'end':
+                    continue
                 samples[k] = torch.cat((real_samples[k], imag_samples[k]), dim=0)
-            labels = torch.cat((torch.ones(batch_size), torch.zeros(batch_size))).view(-1,1).to(self._device_id)
+
+            # soft labels
+            true_labels = torch.full((batch_size,), .8) + torch.randn((batch_size,))/10.0
+            fake_labels = torch.full((batch_size,), .2) + torch.randn((batch_size,))/10.0
+            labels = torch.cat((true_labels, fake_labels)).view(-1,1).to(self._device_id)
 
             self._disc_optimizer.zero_grad()
             logits, pred = self._disc_agent.discriminate(

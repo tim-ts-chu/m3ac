@@ -257,7 +257,6 @@ class MiniBatchRL:
                     traj_len += 1
                     obs = next_obs
 
-                # if self._real_buffer.size < self._batch_size:
                 if self._real_buffer.size < 10240: # late start
                 # if self._real_buffer.size < 1024: # late start
                    continue # haven't collected enough data yet, skip optimization
@@ -275,8 +274,8 @@ class MiniBatchRL:
                 if self._summary_manager: self._summary_manager.update(optim_info)
 
                 # optimize discriminator
-                # optim_info = self._disc_algo.optimize_agent(self._batch_size, 1, train_step)
-                # if self._summary_manager: self._summary_manager.update(optim_info)
+                optim_info = self._disc_algo.optimize_agent(self._batch_size, 1, train_step)
+                if self._summary_manager: self._summary_manager.update(optim_info)
 
                 if train_step % self._log_interval == 0:
                     if self._summary_manager:

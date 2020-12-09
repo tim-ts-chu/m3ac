@@ -113,15 +113,19 @@ class ModelAlgorithm:
 
             transition_reg_loss = h_step_losses.sum()/self._h_step_loss
 
-            # logits, pred = self._disc_agent.discriminate(
-                    # real_samples['state'],
-                    # real_samples['action'], # TODO how should we use the record action? or use current policy to decide?
-                    # real_samples['reward'],
-                    # real_samples['done'], # FIXME how to backprop?
-                    # next_state_sample)
-            # labels = torch.ones(batch_size).view(-1,1).to(self._device_id)
-            # transition_gan_loss = F.binary_cross_entropy_with_logits(logits, labels)
-            transition_gan_loss = 0
+            # gan loss
+            next_state_diff_dist = self._model_agent.transition(
+                    real_samples['state'][:,0,:], real_samples['action'][:,0,:])
+            next_state_diff = next_state_diff_dist.rsample()
+            logits, pred = self._disc_agent.discriminate(
+                    real_samples['state'][:,0,:],
+                    real_samples['action'][:,0,:],
+                    real_samples['reward'][:,0,:],
+                    real_samples['done'][:,0,:],
+                    real_samples['state'][:,0,:] + next_state_diff)
+            true_labels = torch.full((batch_size,1), .8, dtype=logits.dtype, device=logits.device) + \
+                    torch.randn((batch_size,1), dtype=logits.dtype, device=logits.device)/10.0
+            transition_gan_loss = F.binary_cross_entropy_with_logits(logits, true_labels)
 
             optim_info['transitionRegLoss'].append(transition_reg_loss)
             optim_info['transitionGanLoss'].append(transition_gan_loss)
@@ -161,9 +165,11 @@ class ModelAlgorithm:
                     # self._transition_gan_loss_weight * transition_gan_loss + \
                     # self._reward_gan_loss_weight * reward_gan_loss + \
                     # done_loss
-
             # total_loss.backward()
-            transition_reg_loss.backward()
+
+            transition_loss = self._transition_reg_loss_weight * transition_reg_loss + \
+                    self._transition_gan_loss_weight * transition_gan_loss
+            transition_loss.backward()
             reward_reg_loss.backward()
             done_loss.backward()
 

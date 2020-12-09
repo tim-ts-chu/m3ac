@@ -16,7 +16,10 @@ def main(args: argparse.Namespace):
     folder_path = '/home/timchu/m3ac/data/'
     task_name = 'm3ac-'+datetime.now().strftime('%m%d-%H,%M,%S,%f-')+str(args.seed)
     multiprocess = False
-    default_device_id = 3
+    default_device_id = 0
+    # default_device_id = 1
+    # default_device_id = 2
+    # default_device_id = 3
     random_seed = args.seed     # for reproducibility: default is 0
     # torch.set_default_tensor_type(torch.DoubleTensor) # set default dtype to torch.float64
 
@@ -52,8 +55,8 @@ def main(args: argparse.Namespace):
                 },
             'model_algo': {
                 'transition_reg_loss_weight': 1,
+                'transition_gan_loss_weight': 0.1,
                 'reward_reg_loss_weight': 1,
-                'transition_gan_loss_weight': 0,
                 'reward_gan_loss_weight': 0,
                 'h_step_loss': 1
                 },
@@ -69,7 +72,7 @@ def main(args: argparse.Namespace):
                 'eval_interval': int(1e5),
                 'eval_n_steps': int(1e3),
                 'eval_max_steps': int(1e3),
-                'batch_size': int(256)
+                'batch_size': int(1024)
                 },
             'other_info': {   # dumping some information for the record only, not really params
                 'default_device_id': default_device_id,
