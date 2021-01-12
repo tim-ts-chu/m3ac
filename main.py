@@ -72,7 +72,7 @@ def main(args: argparse.Namespace):
                 'eval_interval': int(1e5),
                 'eval_n_steps': int(1e3),
                 'eval_max_steps': int(1e3),
-                'batch_size': int(1024)
+                'batch_size': int(256)
                 },
             'other_info': {   # dumping some information for the record only, not really params
                 'default_device_id': default_device_id,
@@ -81,7 +81,7 @@ def main(args: argparse.Namespace):
                 'task_name': task_name,
                 'world_size': world_size,
                 'multiprocesses': multiprocess,
-                'other_comments': 'multi-step loss'
+                'other_comments': ''
                 },
             }
 
