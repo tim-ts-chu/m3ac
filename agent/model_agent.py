@@ -5,6 +5,7 @@ import torch.distributions as td
 import logging
 from typing import List
 from agent.models.policy import MLP
+from agent.models.mlp import WorldMlp
 from replay.replay import BufferFields
 
 class ModelAgent:
@@ -15,30 +16,42 @@ class ModelAgent:
             reward_hidden_size: List,
             done_hidden_size: List, 
             predict_reward: bool,
-            predict_done: bool):
+            predict_done: bool,
+            model_activation: torch.nn.Module,
+            use_batchnorm: bool,
+            dropout_prob: float=None):
 
         self._device_id = device_id
 
         # output gaussian mean, std
-        self._transition_mlp = MLP(
+        self._transition_mlp = WorldMlp(
                 BufferFields['state']+BufferFields['action'],
                 model_hidden_size,
                 BufferFields['state']*2,
-                torch.nn.LeakyReLU).to(device_id)
+                activation=model_activation,
+                use_batchnorm=use_batchnorm,
+                dropout_prob=dropout_prob,
+                ).to(device_id)
 
         # output gaussian mean, std
-        self._reward_mlp = MLP(
+        self._reward_mlp = WorldMlp(
                 BufferFields['state']+BufferFields['action']+BufferFields['next_state'],
                 reward_hidden_size,
                 2,
-                torch.nn.LeakyReLU).to(device_id)
+                activation=model_activation,
+                use_batchnorm=use_batchnorm,
+                dropout_prob=dropout_prob,
+                ).to(device_id)
 
         # output logits for sigmoid
-        self._done_mlp = MLP(
+        self._done_mlp = WorldMlp(
                 BufferFields['state']+BufferFields['action']+BufferFields['next_state'],
                 done_hidden_size,
                 1,
-                torch.nn.LeakyReLU).to(device_id)
+                activation=model_activation,
+                use_batchnorm=use_batchnorm,
+                dropout_prob=dropout_prob,
+                ).to(device_id)
 
         self.transition = self._transition
 
@@ -60,6 +73,16 @@ class ModelAgent:
 
     def done_params(self):
         return self._done_mlp.parameters()
+
+    def eval(self):
+        self._transition_mlp.eval()
+        self._reward_mlp.eval()
+        self._done_mlp.eval()
+
+    def train(self):
+        self._transition_mlp.train()
+        self._reward_mlp.train()
+        self._done_mlp.train()
 
     def _transition(self, state, action):
         out = self._transition_mlp(torch.cat((state, action), dim=1))

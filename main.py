@@ -49,6 +49,9 @@ def main(args: argparse.Namespace):
                 'model_hidden_size': [256, 256],
                 'reward_hidden_size': [256, 256],
                 'done_hidden_size': [256, 256],
+                'model_activation': torch.nn.LeakyReLU,
+                'use_batchnorm': False,
+                'dropout_prob': None
                 },
             'model_algo': {
                 'transition_reg_loss_weight': 1,
@@ -59,6 +62,7 @@ def main(args: argparse.Namespace):
                 },
             'disc_agent': {
                 'hidden_size': [256, 256],
+                'activation': torch.nn.ReLU,
                 },
             'disc_algo': {
                 },
