@@ -1,6 +1,46 @@
 
 import gym
 import torch
+import numpy as np
+from replay.replay import BufferFields
+from gym.envs.registration import registry, register, make, spec
+
+register(                                                                     
+    id='Hopper-v4',
+    kwargs={'terminate_when_unhealthy': False},
+    entry_point='gym.envs.mujoco.hopper_v3:HopperEnv',                         
+    max_episode_steps=1000,                                                   
+    reward_threshold=3800.0,                                                  
+)
+
+register(
+    id='HalfCheetah-v4',
+    entry_point='gym.envs.mujoco.half_cheetah_v3:HalfCheetahEnv',
+    max_episode_steps=1000,                               
+    reward_threshold=4800.0,
+)
+
+register(
+    id='Walker2d-v4',
+    kwargs={'terminate_when_unhealthy': False},
+    max_episode_steps=1000,
+    entry_point='gym.envs.mujoco.walker2d_v3:Walker2dEnv',
+)
+
+register(
+    id='Ant-v4',
+    kwargs={'terminate_when_unhealthy': False},
+    entry_point='gym.envs.mujoco.ant_v3:AntEnv',
+    max_episode_steps=1000,
+    reward_threshold=6000.0,
+)
+
+register(
+    id='Humanoid-v4',
+    kwargs={'terminate_when_unhealthy': False},
+    entry_point='gym.envs.mujoco.humanoid_v3:HumanoidEnv',
+    max_episode_steps=1000,
+)
 
 class GymEnv:
 

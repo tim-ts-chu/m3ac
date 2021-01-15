@@ -267,9 +267,14 @@ class MiniBatchRL:
                 optim_info = self._model_algo.optimize_agent(self._batch_size, 10, train_step)
                 if self._summary_manager: self._summary_manager.update(optim_info)
 
+                # obtain samples
+                samples_real = self._real_buffer.sample(self._batch_size)
+                samples_imag = self._model_algo.generate_samples(int(1.5*self._batch_size))
+                samples = {}
+                for k, v in samples_imag.items():
+                    samples[k] = torch.cat((samples_real[k].to(self.device_id), samples_imag[k].to(self.device_id)), dim=0)
+
                 # optimize policy agent
-                # samples = self._real_buffer.sample(self._batch_size)
-                samples = self._model_algo.generate_samples(self._batch_size)
                 optim_info = self._sac_algo.optimize_agent(samples, train_step)
                 if self._summary_manager: self._summary_manager.update(optim_info)
 

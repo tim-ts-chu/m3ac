@@ -16,10 +16,10 @@ def main(args: argparse.Namespace):
     folder_path = '/home/timchu/m3ac/data/'
     task_name = 'm3ac-'+datetime.now().strftime('%m%d-%H,%M,%S,%f-')+str(args.seed)
     multiprocess = False
-    default_device_id = 0
+    # default_device_id = 0
     # default_device_id = 1
     # default_device_id = 2
-    # default_device_id = 3
+    default_device_id = 3
     random_seed = args.seed     # for reproducibility: default is 0
     # torch.set_default_tensor_type(torch.DoubleTensor) # set default dtype to torch.float64
 
@@ -31,10 +31,7 @@ def main(args: argparse.Namespace):
 
     params = {
             'env': {
-                # 'id': 'Hopper-v2'
-                'id': 'HalfCheetah-v2'
-                # 'id': 'Walker2d-v2'
-                # 'id': 'Ant-v2'
+                'id': 'HalfCheetah-v4'
                 },
             'replay_buffer': {
                 'buffer_size': int(1e6),
