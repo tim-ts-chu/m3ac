@@ -82,8 +82,9 @@ class ModelAlgorithm:
         optim_info['transitionError-5'] = multisteps_errors[4]
         optim_info['transitionError-10'] = multisteps_errors[9]
         
-        for it in range(num_iter):
-            real_samples = self._real_buffer.sample_sequence(batch_size, self._h_step_loss, self._device_id)
+        for it in range(1):#num_iter):
+            sample_size = batch_size*num_iter
+            real_samples = self._real_buffer.sample_sequence(sample_size, self._h_step_loss, self._device_id)
 
             self._transition_optimizer.zero_grad()
             self._reward_optimizer.zero_grad()
@@ -94,7 +95,7 @@ class ModelAlgorithm:
 
             # n step transition loss
             h_step_losses = torch.zeros(self._h_step_loss, device=self._device_id)
-            valid_mask = torch.ones(batch_size, device=self._device_id, requires_grad=False).bool()
+            valid_mask = torch.ones(sample_size, device=self._device_id, requires_grad=False).bool()
             h_state = real_samples['state'][:,0,:]
             for h in range(self._h_step_loss):
                 valid_mask[real_samples['end'][:,h,0]>0.5] = False
@@ -123,8 +124,8 @@ class ModelAlgorithm:
                     real_samples['reward'][:,0,:],
                     real_samples['done'][:,0,:],
                     real_samples['state'][:,0,:] + next_state_diff)
-            true_labels = torch.full((batch_size,1), .8, dtype=logits.dtype, device=logits.device) + \
-                    torch.randn((batch_size,1), dtype=logits.dtype, device=logits.device)/10.0
+            true_labels = torch.full((sample_size, 1), .8, dtype=logits.dtype, device=logits.device) + \
+                    torch.randn((sample_size, 1), dtype=logits.dtype, device=logits.device)/10.0
             transition_gan_loss = F.binary_cross_entropy_with_logits(logits, true_labels)
 
             optim_info['transitionRegLoss'].append(transition_reg_loss)
