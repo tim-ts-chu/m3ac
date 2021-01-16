@@ -49,7 +49,8 @@ class MiniBatchRL:
             eval_interval: int,
             eval_n_steps: int,
             eval_max_steps: int,
-            batch_size: int):
+            batch_size: int,
+            imag_batch_size: int):
 
         # reources here are shared cross processes
         self._folder_path = folder_path
@@ -61,6 +62,7 @@ class MiniBatchRL:
         self._eval_n_steps = eval_n_steps
         self._eval_max_steps = eval_max_steps
         self._batch_size = batch_size
+        self._imag_batch_size = imag_batch_size
 
         self._task_folder = os.path.join(folder_path, task_name)
         os.mkdir(self._task_folder)
@@ -185,7 +187,7 @@ class MiniBatchRL:
         '''
         state_dim = self._env.observation_space.shape[0]
         action_dim = self._env.action_space.shape[0]
-        set_buffer_dim(state_dim, action_dim, 1, 1, 1)
+        set_buffer_dim(state_dim, action_dim)
         self._logger.info('state dim:{}, action dim:{}'.format(state_dim, action_dim))
 
     def _train(self, rank: int, world_size: int, params: Dict) -> None:
@@ -269,10 +271,13 @@ class MiniBatchRL:
 
                 # obtain samples
                 samples_real = self._real_buffer.sample(self._batch_size)
-                samples_imag = self._model_algo.generate_samples(int(1.5*self._batch_size))
-                samples = {}
-                for k, v in samples_imag.items():
-                    samples[k] = torch.cat((samples_real[k].to(self.device_id), samples_imag[k].to(self.device_id)), dim=0)
+                if self._imag_batch_size > 0:
+                    samples_imag = self._model_algo.generate_samples(self._imag_batch_size)
+                    samples = {}
+                    for k, v in samples_imag.items():
+                        samples[k] = torch.cat((samples_real[k].to(self.device_id), samples_imag[k].to(self.device_id)), dim=0)
+                else:
+                    samples = samples_real
 
                 # optimize policy agent
                 optim_info = self._sac_algo.optimize_agent(samples, train_step)
@@ -355,7 +360,7 @@ class MiniBatchRL:
 
         # dump video
         if SUPPORT_MOVIEPY:
-            clip = mpy.ImageSequenceClip(movie_images, fps=15)
+            clip = mpy.ImageSequenceClip(movie_images, fps=30)
             clip.write_videofile(os.path.join(folder_path, f'iter_{step}_rank{self._rank}.mp4'), logger=None)
 
         # dump model

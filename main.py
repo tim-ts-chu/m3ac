@@ -16,10 +16,7 @@ def main(args: argparse.Namespace):
     folder_path = '/home/timchu/m3ac/data/'
     task_name = 'm3ac-'+datetime.now().strftime('%m%d-%H,%M,%S,%f-')+str(args.seed)
     multiprocess = False
-    # default_device_id = 0
-    # default_device_id = 1
-    # default_device_id = 2
-    default_device_id = 3
+    default_device_id = args.device
     random_seed = args.seed     # for reproducibility: default is 0
     # torch.set_default_tensor_type(torch.DoubleTensor) # set default dtype to torch.float64
 
@@ -31,7 +28,10 @@ def main(args: argparse.Namespace):
 
     params = {
             'env': {
+                # 'id': 'Hopper-v4'
                 'id': 'HalfCheetah-v4'
+                # 'id': 'Walker2d-v4'
+                # 'id': 'Ant-v4'
                 },
             'replay_buffer': {
                 'buffer_size': int(1e6),
@@ -73,7 +73,8 @@ def main(args: argparse.Namespace):
                 'eval_interval': int(1e5),
                 'eval_n_steps': int(1e3),
                 'eval_max_steps': int(1e3),
-                'batch_size': int(256)
+                'batch_size': int(256),
+                'imag_batch_size': int(384)
                 },
             'other_info': {   # dumping some information for the record only, not really params
                 'default_device_id': default_device_id,
@@ -111,6 +112,8 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Hyperparameters for training')
     parser.add_argument('--seed', metavar='0', type=int,  default=0,
                         help='random seed base (different process might add different offset on it)')
+    parser.add_argument('--device', metavar='0', type=int,  default=0,
+                        help='cuda device id, [0, 1, 2, 3]')
 
     args = parser.parse_args()
     print('args:', args)

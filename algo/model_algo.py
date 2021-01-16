@@ -57,30 +57,30 @@ class ModelAlgorithm:
         optim_info['doneError'] = []
 
         # calculate multi-step error
-        max_steps = 10
-        multisteps_errors = {}
-        sample_seq = self._real_buffer.sample_sequence(batch_size, max_steps, self._device_id)
-        valid_mask = torch.ones(batch_size, 1, device=self._device_id) # (b, 1)
-        current_state = sample_seq['state'][:, 0, :]
-        with torch.no_grad():
-            for t in range(max_steps):
-                next_state_diff_dist = self._model_agent.transition(current_state, sample_seq['action'][:, t, :])
-                next_state_pred = current_state + next_state_diff_dist.sample()
+        # max_steps = 10
+        # multisteps_errors = {}
+        # sample_seq = self._real_buffer.sample_sequence(batch_size, max_steps, self._device_id)
+        # valid_mask = torch.ones(batch_size, 1, device=self._device_id) # (b, 1)
+        # current_state = sample_seq['state'][:, 0, :]
+        # with torch.no_grad():
+            # for t in range(max_steps):
+                # next_state_diff_dist = self._model_agent.transition(current_state, sample_seq['action'][:, t, :])
+                # next_state_pred = current_state + next_state_diff_dist.sample()
 
-                valid_mask[sample_seq['end'][:, t, :]>0.5] = 0  # (b, 1)
-                next_state_real = sample_seq['next_state'][:, t, :]
-                if valid_mask.sum() > 0.5:
-                    errors = (next_state_real*valid_mask-next_state_pred*valid_mask).abs().sum()/valid_mask.sum()
-                    multisteps_errors[t] = errors
-                else:
-                    multisteps_errors[t] = 0
+                # valid_mask[sample_seq['end'][:, t, :]>0.5] = 0  # (b, 1)
+                # next_state_real = sample_seq['next_state'][:, t, :]
+                # if valid_mask.sum() > 0.5:
+                    # errors = (next_state_real*valid_mask-next_state_pred*valid_mask).abs().sum()/valid_mask.sum()
+                    # multisteps_errors[t] = errors
+                # else:
+                    # multisteps_errors[t] = 0
                 
-                current_state = next_state_pred
+                # current_state = next_state_pred
 
-        optim_info['transitionError-1'] = multisteps_errors[0]
-        optim_info['transitionError-3'] = multisteps_errors[2]
-        optim_info['transitionError-5'] = multisteps_errors[4]
-        optim_info['transitionError-10'] = multisteps_errors[9]
+        # optim_info['transitionError-1'] = multisteps_errors[0]
+        # optim_info['transitionError-3'] = multisteps_errors[2]
+        # optim_info['transitionError-5'] = multisteps_errors[4]
+        # optim_info['transitionError-10'] = multisteps_errors[9]
         
         for it in range(1):#num_iter):
             sample_size = batch_size*num_iter

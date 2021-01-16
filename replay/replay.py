@@ -11,13 +11,13 @@ BufferFields = {
         'end': None,
         }
 
-def set_buffer_dim(state_dim, action_dim, reward_dim, done_dim, end_dim):
+def set_buffer_dim(state_dim, action_dim):
     BufferFields['state'] = state_dim
     BufferFields['action'] = action_dim
-    BufferFields['reward'] = reward_dim
-    BufferFields['done'] = done_dim
+    BufferFields['reward'] = 1
+    BufferFields['done'] = 1
     BufferFields['next_state'] = state_dim
-    BufferFields['end'] = end_dim
+    BufferFields['end'] = 1
 
 class ReplayBuffer:
     '''
@@ -27,7 +27,7 @@ class ReplayBuffer:
     on how much memory the machine has.
     '''
 
-    def __init__(self, buffer_size: int, dtype: torch.dtype=None, device: int=None):
+    def __init__(self, buffer_size: int, dtype: torch.dtype=None, device: torch.device=None):
 
         self._buffer_size = buffer_size
         self._device = device
@@ -42,7 +42,11 @@ class ReplayBuffer:
         # initialize buffer for each field
         for name in BufferFields.keys():
             field_dim = BufferFields[name]
-            self._buffer[name] = torch.empty((self._buffer_size, field_dim), device=self._device, requires_grad=False)
+            self._buffer[name] = torch.empty(
+                    (self._buffer_size, field_dim),
+                    device=self._device,
+                    dtype=self._dtype,
+                    requires_grad=False)
 
     @property
     def size(self) -> int:

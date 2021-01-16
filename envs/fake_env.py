@@ -19,12 +19,11 @@ class BaseFakeEnv:
         @param a: (batch, action_dim)
         """
         # should handle batch input
-        with torch.no_grad():
-            next_s = self._get_obs(s, a)
-            reward = self._get_rewared(s, a, next_s)
-            done = self._get_done(s, a, next_s)
-            info = self._get_info(s, a, next_s)
-            return next_s, reward, done, info
+        next_s = self._get_obs(s, a)
+        reward = self._get_rewared(s, a, next_s)
+        done = self._get_done(s, a, next_s)
+        info = self._get_info(s, a, next_s)
+        return next_s, reward, done, info
 
     def _get_obs(self, s, a):
         diff = self._transition(s, a).rsample()

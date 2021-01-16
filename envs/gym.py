@@ -61,7 +61,14 @@ class GymEnv:
     def step(self, action: torch.Tensor, run_for_n_step = 1):
         r_sum = 0
         for i in range(run_for_n_step):
-            o, r, d, info = self._env.step(action.numpy())
+            try:
+                o, r, d, info = self._env.step(action.numpy())
+            except Exception as e:
+                print(e)
+                o = np.zeros(BufferFields['state'])
+                d = True
+                r = -10
+                info = {}
             r_sum += r
             if d:
                 break
