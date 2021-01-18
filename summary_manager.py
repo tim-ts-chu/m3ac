@@ -59,13 +59,12 @@ class SummaryManager:
                 # update each log interval
                 'ItersPerSec',
                 # new
-                'transitionError',
                 'transitionError-1',
                 'transitionError-3',
                 'transitionError-5',
-                'transitionError-10',
-                'transitionError-20',
-                'rewardError',
+                'rewardError-1',
+                'rewardError-3',
+                'rewardError-5',
                 'discError',
                 'doneError',
                 'transitionRegLoss',

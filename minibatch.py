@@ -50,7 +50,8 @@ class MiniBatchRL:
             eval_n_steps: int,
             eval_max_steps: int,
             batch_size: int,
-            imag_batch_size: int):
+            imag_batch_size: int,
+            dump_video: bool):
 
         # reources here are shared cross processes
         self._folder_path = folder_path
@@ -63,6 +64,7 @@ class MiniBatchRL:
         self._eval_max_steps = eval_max_steps
         self._batch_size = batch_size
         self._imag_batch_size = imag_batch_size
+        self._dump_video = dump_video
 
         self._task_folder = os.path.join(folder_path, task_name)
         os.mkdir(self._task_folder)
@@ -203,8 +205,8 @@ class MiniBatchRL:
         use_init_std = True
 
         # evaluate initial performance
-        # self._logger.info('Initial evaluation!')
-        # self._evaluation(0)
+        self._logger.info('Initial evaluation!')
+        self._evaluation(0)
         if self._world_size > 1:
             dist.barrier() # sync before begin
         self._logger.info('Training is begin!')
@@ -259,8 +261,8 @@ class MiniBatchRL:
                     traj_len += 1
                     obs = next_obs
 
-                if self._real_buffer.size < 10240: # late start
-                # if self._real_buffer.size < 1024: # late start
+                if self._real_buffer.size < 10000: # late start
+                # if self._real_buffer.size < 1000: # late start
                    continue # haven't collected enough data yet, skip optimization
                 else:
                     use_init_std = False
@@ -298,7 +300,7 @@ class MiniBatchRL:
             # evaluate performance for each round
             if self._world_size > 1:
                 dist.barrier() # sync after each round and before evaluation
-            # self._evaluation(train_step)
+            self._evaluation(train_step)
             traj_len = 0
             cumulative_reward = 0
             obs = self._env.reset()
@@ -306,7 +308,7 @@ class MiniBatchRL:
         self._logger.info('Training is done!')
 
     @torch.no_grad()
-    def _evaluation(self, step: int) -> None:
+    def _evaluation(self, train_step: int) -> None:
         '''
         Evaluating current policy, generating qualitative result such as videos if support,
         logging some statistics, and saving current models.
@@ -318,10 +320,27 @@ class MiniBatchRL:
         success_trajs = 0
         cumulative_reward = 0
         cumulative_discounted_reward = 0
+
+        # model validation
+        model_val_steps = 5
+        obs_valset = torch.empty((self._eval_max_steps, BufferFields['state']), device=self.device_id, requires_grad=False)
+        act_valset = torch.empty((self._eval_max_steps, BufferFields['action']), device=self.device_id, requires_grad=False)
+        rwd_valset = torch.empty((self._eval_max_steps, BufferFields['reward']), device=self.device_id, requires_grad=False)
+        nobs_valset = torch.empty((self._eval_max_steps, BufferFields['next_state']), device=self.device_id, requires_grad=False)
+        val_info = {
+                'transitionError-1': [],
+                'transitionError-3': [],
+                'transitionError-5': [],
+                'rewardError-1': [],
+                'rewardError-3': [],
+                'rewardError-5': []}
+
         obs = self._env.reset()
         movie_images.append(self._env.render())
         self._sac_agent.eval_mode(True)
+        # set fake env to eval_mode?
         for eval_step in self._tqdm_wrapper(1, self._eval_n_steps+1):
+            # env step
             _, _, action, _ = self._sac_agent.pi(obs.to(torch.float32).view(1, -1))
             next_obs, r, d, info = self._env.step(action.detach().to('cpu').view(BufferFields['action']))
             cumulative_reward += r
@@ -330,6 +349,26 @@ class MiniBatchRL:
                 step_reward=r,
                 cumulative_reward=cumulative_reward))
 
+            # model validation
+            obs_valset[traj_len-1, :] = obs
+            act_valset[traj_len-1, :] = action
+            rwd_valset[traj_len-1, :] = r
+            nobs_valset[traj_len-1, :] = next_obs
+
+            if traj_len > model_val_steps:
+                start_idx = traj_len - model_val_steps - 1
+                curr_obs = obs_valset[start_idx, :].view(1, -1)
+                for val_step in range(model_val_steps):
+                    val_act = act_valset[start_idx + val_step, :].view(1, -1)
+                    val_rwd = rwd_valset[start_idx + val_step, :].view(1, -1)
+                    val_nobs = nobs_valset[start_idx + val_step, :].view(1, -1)
+                    pred_nobs, pred_rwd, _, _ = self._fake_env.step(curr_obs, val_act)
+                    if val_step in [0, 2, 4]:
+                        val_info['transitionError-'+str(val_step+1)].append((val_nobs-pred_nobs).square().sum())
+                        val_info['rewardError-'+str(val_step+1)].append((val_rwd-pred_rwd).square()) # scalar 
+                    curr_obs = pred_nobs
+
+            # check episode termination
             if d or traj_len >= self._eval_max_steps:
                 # terminate trajectory
                 if self._summary_manager: self._summary_manager.update_eval_traj_info(
@@ -345,23 +384,19 @@ class MiniBatchRL:
                 traj_len += 1
                 obs = next_obs
 
+        if self._summary_manager: self._summary_manager.update(val_info)
+        if self._summary_manager: self._summary_manager.flush(train_step)
         self._sac_agent.eval_mode(False)
-        # if self._summary_manager:
-            # self._summary_manager.update({
-                # 'EvalTotalTraj': total_trajs,
-                # 'EvalSuccessTraj': success_trajs,
-                # 'EvalSuccessRate': success_trajs/total_trajs})
-            # self._summary_manager.flush(step)
-        folder_path = os.path.join(self._task_folder, f'iter_{step}')
+        folder_path = os.path.join(self._task_folder, f'iter_{train_step}')
         try:
             os.mkdir(folder_path) # handle concurrency error
         except FileExistsError:
             pass
 
         # dump video
-        if SUPPORT_MOVIEPY:
+        if SUPPORT_MOVIEPY and self._dump_video:
             clip = mpy.ImageSequenceClip(movie_images, fps=30)
-            clip.write_videofile(os.path.join(folder_path, f'iter_{step}_rank{self._rank}.mp4'), logger=None)
+            clip.write_videofile(os.path.join(folder_path, f'iter_{train_step}_rank{self._rank}.mp4'), logger=None)
 
         # dump model
         #model_path = os.path.join(folder_path, f'model_rank{self._rank}.pth')

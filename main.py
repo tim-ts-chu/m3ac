@@ -13,8 +13,7 @@ from minibatch import MiniBatchRL
 
 def main(args: argparse.Namespace):
 
-    folder_path = '/home/timchu/m3ac/data/'
-    # folder_path = '/mnt/brain1/scratch/timchu/data/'
+    folder_path = '/mnt/brain1/scratch/timchu/data/'
     task_name = 'm3ac-'+datetime.now().strftime('%m%d-%H,%M,%S,%f-')+str(args.seed)
     multiprocess = False
     default_device_id = args.device
@@ -30,8 +29,8 @@ def main(args: argparse.Namespace):
     params = {
             'env': {
                 # 'id': 'Hopper-v4'
-                'id': 'HalfCheetah-v4'
-                # 'id': 'Walker2d-v4'
+                # 'id': 'HalfCheetah-v4'
+                'id': 'Walker2d-v4'
                 # 'id': 'Ant-v4'
                 },
             'replay_buffer': {
@@ -49,7 +48,7 @@ def main(args: argparse.Namespace):
                 'predict_done': False,
                 'model_hidden_size': [256, 256],
                 'reward_hidden_size': [256, 256],
-                'done_hidden_size': [256, 256],
+                'done_hidden_size': [256, 256], # useless if predict_done is set to false
                 'model_activation': torch.nn.LeakyReLU,
                 'use_batchnorm': False,
                 'dropout_prob': None
@@ -71,11 +70,12 @@ def main(args: argparse.Namespace):
                 'n_steps': int(1e6),
                 'max_steps': int(1e3),
                 'log_interval': int(1e3),
-                'eval_interval': int(1e5),
+                'eval_interval': int(1e4),
                 'eval_n_steps': int(1e3),
                 'eval_max_steps': int(1e3),
                 'batch_size': int(256),
-                'imag_batch_size': int(384)
+                'imag_batch_size': int(0),
+                'dump_video': False
                 },
             'other_info': {   # dumping some information for the record only, not really params
                 'default_device_id': default_device_id,

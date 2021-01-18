@@ -52,9 +52,8 @@ class ModelAlgorithm:
         optim_info['rewardGanLoss'] = []
         optim_info['doneLoss'] = []
 
-        optim_info['transitionError'] = []
-        optim_info['rewardError'] = []
-        optim_info['doneError'] = []
+        # optim_info['rewardError'] = []
+        # optim_info['doneError'] = []
 
         # calculate multi-step error
         # max_steps = 10
@@ -140,7 +139,7 @@ class ModelAlgorithm:
                         real_samples['state'][:,0,:], real_samples['action'][:,0,:], real_samples['next_state'][:,0,:])
                 reward_pred = reward_dist.rsample()
                 reward_error = (reward_pred - real_samples['reward'][:,0,:]).abs().sum()/batch_size
-                optim_info['rewardError'].append(reward_error)
+                # optim_info['rewardError'].append(reward_error)
                 reward_reg_loss = F.mse_loss(reward_pred, real_samples['reward'][:,0,:])
                 reward_gan_loss = 0 # TODO only discriminate on transition at this point
 
@@ -154,7 +153,7 @@ class ModelAlgorithm:
                 done_logits, done_pred = self._model_agent.done(
                         real_samples['state'][:,0,:], real_samples['action'][:,0,:], real_samples['next_state'][:,0,:])
                 done_error = (done_pred - real_samples['done'][:,0,:]).abs().sum()/batch_size
-                optim_info['doneError'].append(done_error)
+                # optim_info['doneError'].append(done_error)
                 done_loss = F.binary_cross_entropy_with_logits(done_logits, real_samples['done'][:,0,:])
             
             optim_info['doneLoss'].append(done_loss)
