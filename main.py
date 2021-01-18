@@ -14,6 +14,7 @@ from minibatch import MiniBatchRL
 def main(args: argparse.Namespace):
 
     folder_path = '/home/timchu/m3ac/data/'
+    # folder_path = '/mnt/brain1/scratch/timchu/data/'
     task_name = 'm3ac-'+datetime.now().strftime('%m%d-%H,%M,%S,%f-')+str(args.seed)
     multiprocess = False
     default_device_id = args.device
@@ -45,7 +46,7 @@ def main(args: argparse.Namespace):
                 },
             'model_agent': {
                 'predict_reward': True,
-                'predict_done': True,
+                'predict_done': False,
                 'model_hidden_size': [256, 256],
                 'reward_hidden_size': [256, 256],
                 'done_hidden_size': [256, 256],

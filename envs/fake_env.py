@@ -40,7 +40,7 @@ class BaseFakeEnv:
             _, done = self._done(s, a, next_s)
         else:
             batch_size, _ = next_s.shape
-            done = torch.zeros(batch_size).bool()
+            done = torch.zeros(batch_size, 1)
         return done
 
     def _get_info(self, s, a, next_s):
