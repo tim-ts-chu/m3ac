@@ -26,56 +26,52 @@ class SummaryManager:
         self._logger.info(f'Task folder: {self._task_folder}')
 
         # fields could be as an arguments to make the class more general purpose
-        self._summary_fields = [
+        self._summary_fields = {
                 # update each optimization step
-                'alpha',
-                'piLoss',
-                'q1Loss',
-                'q2Loss',
-                'piGradNorm',
-                'q1GradNorm',
-                'q2GradNorm',
-                # update each traj
-                'CumReward',
-                'CumDiscountedReward',
-                'TrajLength',
+                'alpha': 'AgentPolicy',
+                'piLoss': 'AgentPolicy',
+                'q1Loss': 'AgentPolicy',
+                'q2Loss': 'AgentPolicy',
+                'piGradNorm': 'AgentPolicy',
+                'q1GradNorm': 'AgentPolicy',
+                'q2GradNorm': 'AgentPolicy',
                 # update each step
-                'q1',
-                'q2',
-                'qDiff',
-                'pi1LogStd',
-                'pi2LogStd',
-                'StepReturn',
-                # update each evaluation traj
-                'EvalCumReward',
-                'EvalCumDiscountedReward',
-                'EvalTrajLength',
-                # update each evaluation step
-                'EvalStepReturn',
-                # update each evaluation
-                'EvalTotalTraj',
-                'EvalSuccessTraj',
-                'EvalSuccessRate',
+                'q1': 'AgentPolicy',
+                'q2': 'AgentPolicy',
+                'qDiff': 'AgentPolicy',
+                'pi1LogStd': 'AgentPolicy',
+                'pi2LogStd': 'AgentPolicy',
+                'StepReturn': 'AgentPolicy',
+                # update each traj
+                'CumReward': 'General',
+                'CumDiscountedReward': 'General',
+                'TrajLength': 'General',
                 # update each log interval
-                'ItersPerSec',
+                'ItersPerSec': 'General',
+                # update each evaluation traj
+                'EvalCumReward': 'Evaluation',
+                'EvalCumDiscountedReward': 'Evaluation',
+                'EvalTrajLength': 'Evaluation',
+                # update each evaluation step
+                'EvalStepReturn': 'Evaluation',
                 # new
-                'transitionError-1',
-                'transitionError-3',
-                'transitionError-5',
-                'rewardError-1',
-                'rewardError-3',
-                'rewardError-5',
-                'discError',
-                'doneError',
-                'transitionRegLoss',
-                'transitionGanLoss',
-                'rewardRegLoss',
-                'rewardGanLoss',
-                'discLoss',
-                'doneLoss',
-                ]
+                'transitionError-1': 'ModelVal',
+                'transitionError-3': 'ModelVal',
+                'transitionError-5': 'ModelVal',
+                'rewardError-1': 'ModelVal',
+                'rewardError-3': 'ModelVal',
+                'rewardError-5': 'ModelVal',
+                'transitionRegLoss': 'ModelTrain',
+                'transitionGanLoss': 'ModelTrain',
+                'rewardRegLoss': 'ModelTrain',
+                'rewardGanLoss': 'ModelTrain',
+                'discError': 'ModelTrain',
+                'discLoss': 'ModelTrain',
+                'doneError': 'ModelTrain',
+                'doneLoss': 'ModelTrain',
+                }
 
-        self._summary_info = {f:[] for f in self._summary_fields}
+        self._summary_info = {f:[] for f in self._summary_fields.keys()}
 
     def dump_params(self, params: Dict) -> None:
         '''
@@ -109,11 +105,12 @@ class SummaryManager:
         for k, v in self._summary_info.items():
             if v:
                 vals = np.asarray(v)
-                self._writer.add_scalar(k+'/Average', np.average(vals), step)
-                self._writer.add_scalar(k+'/Std', np.std(vals), step)
-                self._writer.add_scalar(k+'/Median', np.median(vals), step)
-                self._writer.add_scalar(k+'/Min', np.min(vals), step)
-                self._writer.add_scalar(k+'/Max', np.max(vals), step)
+                group = self._summary_fields[k]
+                self._writer.add_scalar(group + '/' + k + '/Average', np.average(vals), step)
+                self._writer.add_scalar(group + '/' + k + '/Median', np.median(vals), step)
+                self._writer.add_scalar(group + '/' + k + '/Std', np.std(vals), step)
+                #self._writer.add_scalar(k+'/Min', np.min(vals), step)
+                #self._writer.add_scalar(k+'/Max', np.max(vals), step)
                 self._writer.flush()
                 self._summary_info[k].clear()
 
