@@ -42,6 +42,9 @@ def main(args: argparse.Namespace):
                 'q_hidden_size': [256, 256]
                 },
             'sac_algo': {
+                'num_updates': int(10),
+                'real_batch_size': int(128),
+                'imag_batch_size': int(128),
                 },
             'model_agent': {
                 'predict_reward': True,
@@ -63,13 +66,15 @@ def main(args: argparse.Namespace):
                 'h_step_loss': 1,
                 'trans_lr': 1e-4,
                 'reward_lr': 1e-5,
-                'model_batch_size': int(2560)
+                'num_updates': int(10),
+                'model_batch_size': int(256)
                 },
             'disc_agent': {
                 'hidden_size': [256, 256],
                 'activation': torch.nn.ReLU,
                 },
             'disc_algo': {
+                'num_updates': int(1),
                 'disc_batch_size': int(256)
                 },
             'minibatch': {
@@ -79,8 +84,6 @@ def main(args: argparse.Namespace):
                 'eval_interval': int(1e4),
                 'eval_n_steps': int(1e3),
                 'eval_max_steps': int(1e3),
-                'real_batch_size': int(0),
-                'imag_batch_size': int(256),
                 'dump_video': False
                 },
             'other_info': {   # dumping some information for the record only, not really params

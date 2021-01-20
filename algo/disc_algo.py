@@ -17,6 +17,7 @@ class DiscriminateAlgorithm:
             model_agent: ModelAgent,
             policy_agent: SACAgent,
             fake_env: BaseFakeEnv,
+            num_updates: int,
             disc_batch_size: int):
 
         self._device_id = device_id
@@ -26,16 +27,17 @@ class DiscriminateAlgorithm:
         self._model_agent = model_agent
         self._policy_agent = policy_agent
         self._fake_env = fake_env
+        self._num_updates = num_updates
         self._disc_batch_size = disc_batch_size
 
         self._disc_optimizer = torch.optim.Adam(disc_agent.params(), lr=1e-4)
 
-    def optimize_agent(self, num_iter: int, step: int) -> Dict:
+    def optimize_agent(self, step: int) -> Dict:
         optim_info = {}
         optim_info['discError'] = []
         optim_info['discLoss'] = []
 
-        for it in range(num_iter):
+        for it in range(self._num_updates):
             real_samples = self._real_buffer.sample(self._disc_batch_size, self._device_id)
 
             with torch.no_grad():

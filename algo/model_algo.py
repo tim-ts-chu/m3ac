@@ -26,6 +26,7 @@ class ModelAlgorithm:
             h_step_loss: int,
             trans_lr: float,
             reward_lr: float,
+            num_updates: int,
             model_batch_size: int):
 
         self._device_id = device_id
@@ -42,13 +43,14 @@ class ModelAlgorithm:
         self._reward_gan_loss_weight = reward_gan_loss_weight
 
         self._h_step_loss = h_step_loss
+        self._num_updates = num_updates
         self._model_batch_size = model_batch_size
 
         self._transition_optimizer = torch.optim.Adam(model_agent.transition_params(), lr=trans_lr)
         self._reward_optimizer = torch.optim.Adam(model_agent.reward_params(), lr=reward_lr)
         self._done_optimizer = torch.optim.Adam(model_agent.done_params(), lr=1e-4)
 
-    def optimize_agent(self, num_iter: int, step: int) -> Dict:
+    def optimize_agent(self, step: int) -> Dict:
         optim_info = {}
         optim_info['transitionRegLoss'] = []
         optim_info['transitionGanLoss'] = []
@@ -56,7 +58,7 @@ class ModelAlgorithm:
         optim_info['rewardGanLoss'] = []
         optim_info['doneLoss'] = []
         
-        for it in range(num_iter):
+        for it in range(self._num_updates):
             real_samples = self._real_buffer.sample_sequence(self._model_batch_size, self._h_step_loss, self._device_id)
 
             self._transition_optimizer.zero_grad()

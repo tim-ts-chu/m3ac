@@ -2,8 +2,9 @@
 import torch
 import numpy as np
 from typing import Dict, Tuple
-from replay.replay import BufferFields
+from replay.replay import BufferFields, ReplayBuffer
 from agent.sac_agent import SACAgent, Gaussian
+from algo.model_algo import ModelAlgorithm
 
 class SACAlgorithm:
     '''
@@ -13,6 +14,11 @@ class SACAlgorithm:
     def __init__(self,
             device_id: int,
             agent: SACAgent,
+            model_algo: ModelAlgorithm,
+            real_buffer: ReplayBuffer,
+            num_updates: int,
+            real_batch_size: int,
+            imag_batch_size: int,
             discount: float=0.99,
             clip_grad_norm: float=1e9,
             learning_rate: float=3e-4,
@@ -22,6 +28,12 @@ class SACAlgorithm:
 
         self._device_id = device_id
         self._agent = agent
+        self._model_algo = model_algo
+        self._real_buffer = real_buffer
+        self._num_updates = num_updates
+        self._real_batch_size = real_batch_size
+        self._imag_batch_size = imag_batch_size
+
         self._discount = discount
         self._clip_grad_norm = clip_grad_norm
         self._lr = learning_rate
@@ -49,48 +61,73 @@ class SACAlgorithm:
     def alpha(self) -> torch.Tensor:
         return self._log_alpha.exp().detach().to(self._device_id)
 
-    def optimize_agent(self, samples: torch.Tensor, step: int) -> Dict:
+    def optimize_agent(self, step: int) -> Dict:
         '''
         Optimize agent for one step given a batch of samples
         '''
+
+        # obtain samples
+        if self._real_batch_size > 0 and self._imag_batch_size > 0:
+            samples_real = self._real_buffer.sample(self._real_batch_size)
+            samples_imag = self._model_algo.generate_samples(self._imag_batch_size)
+            samples = {}
+            for k, v in samples_imag.items():
+                samples[k] = torch.cat((samples_real[k].to(self._device_id), samples_imag[k].to(self._device_id)), dim=0)
+        elif self._real_batch_size > 0:
+            samples = self._real_buffer.sample(self._real_batch_size)
+        elif self._imag_batch_size > 0:
+            samples = self._model_algo.generate_samples(self._imag_batch_size)
+        else:
+            raise Exception('At least one type of batch size should > 0')
+
         optim_info = {}
-        q1_loss, q2_loss, pi_loss, alpha_loss = self._loss(samples)
-        optim_info['alpha'] = self.alpha
-        optim_info['q1Loss'] = q1_loss
-        optim_info['q2Loss'] = q2_loss
-        optim_info['piLoss'] = pi_loss
+        optim_info['alpha'] = []
+        optim_info['q1Loss'] = []
+        optim_info['q2Loss'] = []
+        optim_info['piLoss'] = []
+        optim_info['piGradNorm'] = []
+        optim_info['q1GradNorm'] = []
+        optim_info['q2GradNorm'] = []
 
-        # optimize alpha
-        self._log_alpha_optimizer.zero_grad()
-        alpha_loss.backward()
-        self._log_alpha_optimizer.step()
+        for i in range(self._num_updates):
 
-        # optimize pi
-        self._pi_optimizer.zero_grad()
-        pi_loss.backward()
-        grad_norm = torch.nn.utils.clip_grad_norm_(
-                self._agent.pi_parameters(), self._clip_grad_norm)
-        self._pi_optimizer.step()
-        optim_info['piGradNorm'] = grad_norm
+            q1_loss, q2_loss, pi_loss, alpha_loss = self._loss(samples)
+            optim_info['alpha'].append(self.alpha)
+            optim_info['q1Loss'].append(q1_loss)
+            optim_info['q2Loss'].append(q2_loss)
+            optim_info['piLoss'].append(pi_loss)
 
-        # optimize q
-        self._q1_optimizer.zero_grad()
-        q1_loss.backward()
-        grad_norm = torch.nn.utils.clip_grad_norm_(
-                self._agent.q1_parameters(), self._clip_grad_norm)
-        self._q1_optimizer.step()
-        optim_info['q1GradNorm'] = grad_norm
+            # optimize alpha
+            self._log_alpha_optimizer.zero_grad()
+            alpha_loss.backward()
+            self._log_alpha_optimizer.step()
 
-        self._q2_optimizer.zero_grad()
-        q2_loss.backward()
-        grad_norm = torch.nn.utils.clip_grad_norm_(
-                self._agent.q2_parameters(), self._clip_grad_norm)
-        self._q2_optimizer.step()
-        optim_info['q2GradNorm'] = grad_norm
+            # optimize pi
+            self._pi_optimizer.zero_grad()
+            pi_loss.backward()
+            grad_norm = torch.nn.utils.clip_grad_norm_(
+                    self._agent.pi_parameters(), self._clip_grad_norm)
+            self._pi_optimizer.step()
+            optim_info['piGradNorm'].append(grad_norm)
 
-        # update target q
-        if step % self._update_target_interval == 0:
-            self._agent.update_q_target(self._update_target_tau)
+            # optimize q
+            self._q1_optimizer.zero_grad()
+            q1_loss.backward()
+            grad_norm = torch.nn.utils.clip_grad_norm_(
+                    self._agent.q1_parameters(), self._clip_grad_norm)
+            self._q1_optimizer.step()
+            optim_info['q1GradNorm'].append(grad_norm)
+
+            self._q2_optimizer.zero_grad()
+            q2_loss.backward()
+            grad_norm = torch.nn.utils.clip_grad_norm_(
+                    self._agent.q2_parameters(), self._clip_grad_norm)
+            self._q2_optimizer.step()
+            optim_info['q2GradNorm'].append(grad_norm)
+
+            # update target q
+            if step % self._update_target_interval == 0:
+                self._agent.update_q_target(self._update_target_tau)
 
         return optim_info
 
