@@ -46,25 +46,31 @@ def main(args: argparse.Namespace):
             'model_agent': {
                 'predict_reward': True,
                 'predict_done': False,
-                'model_hidden_size': [256, 256],
-                'reward_hidden_size': [256, 256],
+                # 'trans_hidden_size': [512, 512, 512, 512, 512, 512, 512, 512],
+                # 'reward_hidden_size': [128, 128, 128, 128],
+                'trans_hidden_size': [256, 256, 256, 256],
+                'reward_hidden_size': [256, 256, 256, 256],
                 'done_hidden_size': [256, 256], # useless if predict_done is set to false
                 'model_activation': torch.nn.LeakyReLU,
                 'use_batchnorm': False,
-                'dropout_prob': None
+                'dropout_prob': None,
                 },
             'model_algo': {
                 'transition_reg_loss_weight': 1,
-                'transition_gan_loss_weight': 0.1,
+                'transition_gan_loss_weight': 0,
                 'reward_reg_loss_weight': 1,
                 'reward_gan_loss_weight': 0,
-                'h_step_loss': 1
+                'h_step_loss': 1,
+                'trans_lr': 1e-4,
+                'reward_lr': 1e-5,
+                'model_batch_size': int(2560)
                 },
             'disc_agent': {
                 'hidden_size': [256, 256],
                 'activation': torch.nn.ReLU,
                 },
             'disc_algo': {
+                'disc_batch_size': int(256)
                 },
             'minibatch': {
                 'n_steps': int(1e6),
@@ -73,8 +79,8 @@ def main(args: argparse.Namespace):
                 'eval_interval': int(1e4),
                 'eval_n_steps': int(1e3),
                 'eval_max_steps': int(1e3),
-                'batch_size': int(256),
-                'imag_batch_size': int(0),
+                'real_batch_size': int(0),
+                'imag_batch_size': int(256),
                 'dump_video': False
                 },
             'other_info': {   # dumping some information for the record only, not really params

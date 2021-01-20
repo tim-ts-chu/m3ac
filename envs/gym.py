@@ -5,18 +5,18 @@ import numpy as np
 from replay.replay import BufferFields
 from gym.envs.registration import registry, register, make, spec
 
-register(                                                                     
+register(
     id='Hopper-v4',
     kwargs={'terminate_when_unhealthy': False},
-    entry_point='gym.envs.mujoco.hopper_v3:HopperEnv',                         
-    max_episode_steps=1000,                                                   
-    reward_threshold=3800.0,                                                  
+    entry_point='gym.envs.mujoco.hopper_v3:HopperEnv',
+    max_episode_steps=1000,
+    reward_threshold=3800.0,
 )
 
 register(
     id='HalfCheetah-v4',
     entry_point='gym.envs.mujoco.half_cheetah_v3:HalfCheetahEnv',
-    max_episode_steps=1000,                               
+    max_episode_steps=1000,
     reward_threshold=4800.0,
 )
 

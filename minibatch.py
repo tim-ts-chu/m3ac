@@ -49,7 +49,7 @@ class MiniBatchRL:
             eval_interval: int,
             eval_n_steps: int,
             eval_max_steps: int,
-            batch_size: int,
+            real_batch_size: int,
             imag_batch_size: int,
             dump_video: bool):
 
@@ -62,7 +62,7 @@ class MiniBatchRL:
         self._eval_interval = eval_interval
         self._eval_n_steps = eval_n_steps
         self._eval_max_steps = eval_max_steps
-        self._batch_size = batch_size
+        self._real_batch_size = real_batch_size
         self._imag_batch_size = imag_batch_size
         self._dump_video = dump_video
 
@@ -268,25 +268,29 @@ class MiniBatchRL:
                     use_init_std = False
 
                 # optimize model
-                optim_info = self._model_algo.optimize_agent(self._batch_size, 10, train_step)
+                optim_info = self._model_algo.optimize_agent(1, train_step) #FIXME change to model_batch_size?
                 if self._summary_manager: self._summary_manager.update(optim_info)
 
                 # obtain samples
-                samples_real = self._real_buffer.sample(self._batch_size)
-                if self._imag_batch_size > 0:
+                if self._real_batch_size > 0 and self._imag_batch_size > 0:
+                    samples_real = self._real_buffer.sample(self._real_batch_size)
                     samples_imag = self._model_algo.generate_samples(self._imag_batch_size)
                     samples = {}
                     for k, v in samples_imag.items():
                         samples[k] = torch.cat((samples_real[k].to(self.device_id), samples_imag[k].to(self.device_id)), dim=0)
+                elif self._real_batch_size > 0:
+                    samples = self._real_buffer.sample(self._real_batch_size)
+                elif self._imag_batch_size > 0:
+                    samples = self._model_algo.generate_samples(self._imag_batch_size)
                 else:
-                    samples = samples_real
+                    raise Exception('At least one type of batch size should > 0')
 
                 # optimize policy agent
                 optim_info = self._sac_algo.optimize_agent(samples, train_step)
                 if self._summary_manager: self._summary_manager.update(optim_info)
 
                 # optimize discriminator
-                optim_info = self._disc_algo.optimize_agent(self._batch_size, 1, train_step)
+                optim_info = self._disc_algo.optimize_agent(1, train_step)
                 if self._summary_manager: self._summary_manager.update(optim_info)
 
                 if train_step % self._log_interval == 0:

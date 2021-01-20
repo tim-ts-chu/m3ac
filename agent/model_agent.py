@@ -12,7 +12,7 @@ class ModelAgent:
 
     def __init__(self,
             device_id: int,
-            model_hidden_size: List,
+            trans_hidden_size: List,
             reward_hidden_size: List,
             done_hidden_size: List, 
             predict_reward: bool,
@@ -22,11 +22,12 @@ class ModelAgent:
             dropout_prob: float=None):
 
         self._device_id = device_id
+        self._logger = logging.getLogger()
 
         # output gaussian mean, std
         self._transition_mlp = WorldMlp(
                 BufferFields['state']+BufferFields['action'],
-                model_hidden_size,
+                trans_hidden_size,
                 BufferFields['state']*2,
                 activation=model_activation,
                 use_batchnorm=use_batchnorm,
@@ -64,6 +65,12 @@ class ModelAgent:
             self.done = self._done
         else:
             self.done = None
+
+        
+        self._logger.info('Transition Model:')
+        self._logger.info(self._transition_mlp)
+        self._logger.info('Reward Model:')
+        self._logger.info(self._reward_mlp)
 
     def transition_params(self):
         return self._transition_mlp.parameters()

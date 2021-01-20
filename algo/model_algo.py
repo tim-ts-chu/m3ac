@@ -23,7 +23,10 @@ class ModelAlgorithm:
             transition_gan_loss_weight: float,
             reward_reg_loss_weight: float,
             reward_gan_loss_weight: float,
-            h_step_loss: int):
+            h_step_loss: int,
+            trans_lr: float,
+            reward_lr: float,
+            model_batch_size: int):
 
         self._device_id = device_id
         self._real_buffer = real_buffer
@@ -39,51 +42,22 @@ class ModelAlgorithm:
         self._reward_gan_loss_weight = reward_gan_loss_weight
 
         self._h_step_loss = h_step_loss
+        self._model_batch_size = model_batch_size
 
-        self._transition_optimizer = torch.optim.Adam(model_agent.transition_params(), lr=1e-4)
-        self._reward_optimizer = torch.optim.Adam(model_agent.reward_params(), lr=1e-4)
+        self._transition_optimizer = torch.optim.Adam(model_agent.transition_params(), lr=trans_lr)
+        self._reward_optimizer = torch.optim.Adam(model_agent.reward_params(), lr=reward_lr)
         self._done_optimizer = torch.optim.Adam(model_agent.done_params(), lr=1e-4)
 
-    def optimize_agent(self, batch_size: int, num_iter: int, step: int) -> Dict:
+    def optimize_agent(self, num_iter: int, step: int) -> Dict:
         optim_info = {}
         optim_info['transitionRegLoss'] = []
         optim_info['transitionGanLoss'] = []
         optim_info['rewardRegLoss'] = []
         optim_info['rewardGanLoss'] = []
         optim_info['doneLoss'] = []
-
-        # optim_info['rewardError'] = []
-        # optim_info['doneError'] = []
-
-        # calculate multi-step error
-        # max_steps = 10
-        # multisteps_errors = {}
-        # sample_seq = self._real_buffer.sample_sequence(batch_size, max_steps, self._device_id)
-        # valid_mask = torch.ones(batch_size, 1, device=self._device_id) # (b, 1)
-        # current_state = sample_seq['state'][:, 0, :]
-        # with torch.no_grad():
-            # for t in range(max_steps):
-                # next_state_diff_dist = self._model_agent.transition(current_state, sample_seq['action'][:, t, :])
-                # next_state_pred = current_state + next_state_diff_dist.sample()
-
-                # valid_mask[sample_seq['end'][:, t, :]>0.5] = 0  # (b, 1)
-                # next_state_real = sample_seq['next_state'][:, t, :]
-                # if valid_mask.sum() > 0.5:
-                    # errors = (next_state_real*valid_mask-next_state_pred*valid_mask).abs().sum()/valid_mask.sum()
-                    # multisteps_errors[t] = errors
-                # else:
-                    # multisteps_errors[t] = 0
-                
-                # current_state = next_state_pred
-
-        # optim_info['transitionError-1'] = multisteps_errors[0]
-        # optim_info['transitionError-3'] = multisteps_errors[2]
-        # optim_info['transitionError-5'] = multisteps_errors[4]
-        # optim_info['transitionError-10'] = multisteps_errors[9]
         
-        for it in range(1):#num_iter):
-            sample_size = batch_size*num_iter
-            real_samples = self._real_buffer.sample_sequence(sample_size, self._h_step_loss, self._device_id)
+        for it in range(num_iter):
+            real_samples = self._real_buffer.sample_sequence(self._model_batch_size, self._h_step_loss, self._device_id)
 
             self._transition_optimizer.zero_grad()
             self._reward_optimizer.zero_grad()
@@ -94,7 +68,7 @@ class ModelAlgorithm:
 
             # n step transition loss
             h_step_losses = torch.zeros(self._h_step_loss, device=self._device_id)
-            valid_mask = torch.ones(sample_size, device=self._device_id, requires_grad=False).bool()
+            valid_mask = torch.ones(self._model_batch_size, device=self._device_id, requires_grad=False).bool()
             h_state = real_samples['state'][:,0,:]
             for h in range(self._h_step_loss):
                 valid_mask[real_samples['end'][:,h,0]>0.5] = False
@@ -109,7 +83,7 @@ class ModelAlgorithm:
                 real_state_diff = real_samples['next_state'][:,h,:] - real_samples['state'][:,h,:]
                 h_step_losses[h] = F.mse_loss(next_state_diff[mask,:], real_state_diff[mask,:])
 
-                h_state = torch.clamp((h_state + next_state_diff), -10, 10).detach()
+                h_state = h_state + next_state_diff
 
             transition_reg_loss = h_step_losses.sum()/self._h_step_loss
 
@@ -123,8 +97,8 @@ class ModelAlgorithm:
                     real_samples['reward'][:,0,:],
                     real_samples['done'][:,0,:],
                     real_samples['state'][:,0,:] + next_state_diff)
-            true_labels = torch.full((sample_size, 1), .8, dtype=logits.dtype, device=logits.device) + \
-                    torch.randn((sample_size, 1), dtype=logits.dtype, device=logits.device)/10.0
+            true_labels = torch.full((self._model_batch_size, 1), .8, dtype=logits.dtype, device=logits.device) + \
+                    torch.randn((self._model_batch_size, 1), dtype=logits.dtype, device=logits.device)/10.0
             transition_gan_loss = F.binary_cross_entropy_with_logits(logits, true_labels)
 
             optim_info['transitionRegLoss'].append(transition_reg_loss)
@@ -138,21 +112,21 @@ class ModelAlgorithm:
                 reward_dist = self._model_agent.reward(
                         real_samples['state'][:,0,:], real_samples['action'][:,0,:], real_samples['next_state'][:,0,:])
                 reward_pred = reward_dist.rsample()
-                reward_error = (reward_pred - real_samples['reward'][:,0,:]).abs().sum()/batch_size
+                reward_error = (reward_pred - real_samples['reward'][:,0,:]).abs().sum()/self._model_batch_size
                 # optim_info['rewardError'].append(reward_error)
                 reward_reg_loss = F.mse_loss(reward_pred, real_samples['reward'][:,0,:])
                 reward_gan_loss = 0 # TODO only discriminate on transition at this point
 
             optim_info['rewardRegLoss'].append(reward_reg_loss)
             optim_info['rewardGanLoss'].append(reward_gan_loss)
-
+            
             # done loss
             if not self._model_agent.done:
                 done_loss = torch.tensor(0.0, requires_grad=True)
             else:
                 done_logits, done_pred = self._model_agent.done(
                         real_samples['state'][:,0,:], real_samples['action'][:,0,:], real_samples['next_state'][:,0,:])
-                done_error = (done_pred - real_samples['done'][:,0,:]).abs().sum()/batch_size
+                done_error = (done_pred - real_samples['done'][:,0,:]).abs().sum()/self._model_batch_size
                 # optim_info['doneError'].append(done_error)
                 done_loss = F.binary_cross_entropy_with_logits(done_logits, real_samples['done'][:,0,:])
             

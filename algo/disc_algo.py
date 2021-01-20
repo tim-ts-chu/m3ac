@@ -16,7 +16,8 @@ class DiscriminateAlgorithm:
             disc_agent: DiscriminateAgent,
             model_agent: ModelAgent,
             policy_agent: SACAgent,
-            fake_env: BaseFakeEnv):
+            fake_env: BaseFakeEnv,
+            disc_batch_size: int):
 
         self._device_id = device_id
         self._real_buffer = real_buffer
@@ -25,16 +26,17 @@ class DiscriminateAlgorithm:
         self._model_agent = model_agent
         self._policy_agent = policy_agent
         self._fake_env = fake_env
+        self._disc_batch_size = disc_batch_size
 
         self._disc_optimizer = torch.optim.Adam(disc_agent.params(), lr=1e-4)
 
-    def optimize_agent(self, batch_size, num_iter: int, step: int) -> Dict:
+    def optimize_agent(self, num_iter: int, step: int) -> Dict:
         optim_info = {}
         optim_info['discError'] = []
         optim_info['discLoss'] = []
 
         for it in range(num_iter):
-            real_samples = self._real_buffer.sample(batch_size, self._device_id)
+            real_samples = self._real_buffer.sample(self._disc_batch_size, self._device_id)
 
             with torch.no_grad():
                 # generate imaginary sample
@@ -53,8 +55,8 @@ class DiscriminateAlgorithm:
                 samples[k] = torch.cat((real_samples[k], imag_samples[k]), dim=0)
 
             # soft labels
-            true_labels = torch.full((batch_size,), .8) + torch.randn((batch_size,))/10.0
-            fake_labels = torch.full((batch_size,), .2) + torch.randn((batch_size,))/10.0
+            true_labels = torch.full((self._disc_batch_size,), .8) + torch.randn((self._disc_batch_size,))/10.0
+            fake_labels = torch.full((self._disc_batch_size,), .2) + torch.randn((self._disc_batch_size,))/10.0
             labels = torch.cat((true_labels, fake_labels)).view(-1,1).to(self._device_id)
 
             self._disc_optimizer.zero_grad()
@@ -64,7 +66,7 @@ class DiscriminateAlgorithm:
                     samples['reward'].detach(),
                     samples['done'].detach(),
                     samples['next_state'].detach())
-            error = (pred-labels).abs().sum()/(2*batch_size)
+            error = (pred-labels).abs().sum()/(2*self._disc_batch_size)
 
             loss = F.binary_cross_entropy_with_logits(logits, labels)
             loss.backward()
