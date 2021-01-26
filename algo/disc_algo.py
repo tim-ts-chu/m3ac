@@ -2,7 +2,7 @@
 import torch
 import torch.nn.functional as F
 from typing import Dict
-from envs.fake_env import BaseFakeEnv
+from envs.fake_env import FakeEnv
 from replay.replay import ReplayBuffer, BufferFields
 from agent.disc_agent import DiscriminateAgent
 from agent.model_agent import ModelAgent
@@ -16,7 +16,7 @@ class DiscriminateAlgorithm:
             disc_agent: DiscriminateAgent,
             model_agent: ModelAgent,
             policy_agent: SACAgent,
-            fake_env: BaseFakeEnv,
+            fake_env: FakeEnv,
             num_updates: int,
             disc_batch_size: int):
 

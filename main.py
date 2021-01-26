@@ -47,16 +47,12 @@ def main(args: argparse.Namespace):
                 'imag_batch_size': int(128),
                 },
             'model_agent': {
-                'predict_reward': True,
-                'predict_done': False,
-                # 'trans_hidden_size': [512, 512, 512, 512, 512, 512, 512, 512],
-                # 'reward_hidden_size': [128, 128, 128, 128],
                 'trans_hidden_size': [256, 256, 256, 256],
                 'reward_hidden_size': [256, 256, 256, 256],
-                'done_hidden_size': [256, 256], # useless if predict_done is set to false
                 'model_activation': torch.nn.LeakyReLU,
                 'use_batchnorm': False,
                 'dropout_prob': None,
+                'deterministic': False
                 },
             'model_algo': {
                 'transition_reg_loss_weight': 1,
@@ -66,6 +62,8 @@ def main(args: argparse.Namespace):
                 'h_step_loss': 1,
                 'trans_lr': 1e-4,
                 'reward_lr': 1e-5,
+                'trans_weight_decay': 0,
+                'reward_weight_decay': 0,
                 'num_updates': int(10),
                 'model_batch_size': int(256)
                 },

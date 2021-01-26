@@ -24,7 +24,7 @@ from algo.disc_algo import DiscriminateAlgorithm
 from replay.replay import ReplayBuffer, BufferFields, set_buffer_dim
 #from env.env import Environment
 from envs.gym import GymEnv
-from envs.fake_env import get_fake_env
+from envs.fake_env import FakeEnv
 from summary_manager import SummaryManager
 
 try:
@@ -112,7 +112,7 @@ class MiniBatchRL:
         self._model_agent = ModelAgent(self.device_id, **params['model_agent'])
         self._disc_agent = DiscriminateAgent(self.device_id, **params['disc_agent'])
 
-        self._fake_env = get_fake_env(params['env']['id'], self._model_agent, self._env)
+        self._fake_env = FakeEnv(self._model_agent)
 
         self._model_algo = ModelAlgorithm(self.device_id,
                 self._real_buffer,

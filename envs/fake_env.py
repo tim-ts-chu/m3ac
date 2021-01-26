@@ -1,17 +1,11 @@
 
 import torch
 
-def get_fake_env(env_id, model_agent, real_env):
-    # TODO remove parameters
-    return BaseFakeEnv(model_agent, real_env)
+class FakeEnv:
+    def __init__(self, model_agent):
 
-class BaseFakeEnv:
-    def __init__(self, model_agent, real_env):
-
-        self._real_env = real_env # we will need some real env parameters
-        self._transition = model_agent.transition
-        self._reward = model_agent.reward
-        self._done = model_agent.done
+        self._model_agent = model_agent
+        # TODO should handle ensembles
 
     def step(self, s, a):
         """
@@ -26,21 +20,17 @@ class BaseFakeEnv:
         return next_s, reward, done, info
 
     def _get_obs(self, s, a):
-        diff = self._transition(s, a).rsample()
+        diff = self._model_agent.transition(s, a)
         next_s = s + diff
         return next_s
 
     def _get_rewared(self, s, a, next_s):
-        reward = self._reward(s, a, next_s).rsample()
+        reward = self._model_agent.reward(s, a, next_s)
         return reward
 
     def _get_done(self, s, a, next_s):
-        # TODO remove prdiction part (shouldn't be necessary)
-        if self._done:
-            _, done = self._done(s, a, next_s)
-        else:
-            batch_size, _ = next_s.shape
-            done = torch.zeros(batch_size, 1)
+        batch_size, _ = next_s.shape
+        done = torch.zeros(batch_size, 1)
         return done
 
     def _get_info(self, s, a, next_s):
