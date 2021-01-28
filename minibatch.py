@@ -326,8 +326,7 @@ class MiniBatchRL:
 
         obs = self._env.reset()
         movie_images.append(self._env.render())
-        self._sac_agent.eval_mode(True)
-        # set fake env to eval_mode?
+        # self._sac_agent.eval_mode(True)
         for eval_step in self._tqdm_wrapper(1, self._eval_n_steps+1):
             # env step
             _, _, action, _ = self._sac_agent.pi(obs.to(torch.float32).view(1, -1))

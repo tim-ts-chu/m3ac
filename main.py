@@ -34,6 +34,7 @@ def main(args: argparse.Namespace):
                 # 'id': 'Ant-v4'
                 },
             'replay_buffer': {
+                'device': default_device_id,
                 'buffer_size': int(1e6),
                 },
             'sac_agent': {
@@ -56,15 +57,17 @@ def main(args: argparse.Namespace):
                 },
             'model_algo': {
                 'transition_reg_loss_weight': 1,
-                'transition_gan_loss_weight': 0,
+                'transition_gan_loss_weight': 0.1,
                 'reward_reg_loss_weight': 1,
-                'reward_gan_loss_weight': 0,
                 'h_step_loss': 1,
-                'trans_lr': 1e-4,
-                'reward_lr': 1e-5,
-                'trans_weight_decay': 0,
-                'reward_weight_decay': 0,
-                'num_updates': int(10),
+                'trans_gan_lr': 1e-4,
+                'trans_model_lr': 1e-4,
+                'reward_model_lr': 1e-5,
+                'trans_weight_decay': 5e-5,
+                'reward_weight_decay': 5e-5,
+                'gan_weight_decay': 5e-5,
+                'num_reg_updates': int(10),
+                'num_gan_updates': int(10),
                 'model_batch_size': int(256)
                 },
             'disc_agent': {
@@ -82,7 +85,7 @@ def main(args: argparse.Namespace):
                 'eval_interval': int(1e4),
                 'eval_n_steps': int(1e3),
                 'eval_max_steps': int(1e3),
-                'dump_video': False
+                'dump_video': True
                 },
             'other_info': {   # dumping some information for the record only, not really params
                 'default_device_id': default_device_id,
