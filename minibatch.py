@@ -352,8 +352,8 @@ class MiniBatchRL:
                     val_nobs = nobs_valset[start_idx + val_step, :].view(1, -1)
                     pred_nobs, pred_rwd, _, _ = self._fake_env.step(curr_obs, val_act)
                     if val_step in [0, 2, 4]:
-                        val_info['transitionError-'+str(val_step+1)].append((val_nobs-pred_nobs).square().sum())
-                        val_info['rewardError-'+str(val_step+1)].append((val_rwd-pred_rwd).square()) # scalar 
+                        val_info['transitionError-'+str(val_step+1)].append((val_nobs-pred_nobs).square().sum()/BufferFields['state'])
+                        val_info['rewardError-'+str(val_step+1)].append((val_rwd-pred_rwd).square()) # scalar
                     curr_obs = pred_nobs
 
             # check episode termination

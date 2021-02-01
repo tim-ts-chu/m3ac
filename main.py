@@ -43,9 +43,9 @@ def main(args: argparse.Namespace):
                 'q_hidden_size': [256, 256]
                 },
             'sac_algo': {
-                'num_updates': int(10),
-                'real_batch_size': int(128),
-                'imag_batch_size': int(128),
+                'num_updates': int(0),
+                'real_batch_size': int(0),
+                'imag_batch_size': int(256),
                 },
             'model_agent': {
                 'trans_hidden_size': [256, 256, 256, 256],
@@ -57,9 +57,15 @@ def main(args: argparse.Namespace):
                 },
             'model_algo': {
                 'transition_reg_loss_weight': 1,
-                'transition_gan_loss_weight': 0.1,
                 'reward_reg_loss_weight': 1,
+                'gan_loss_weight': 0.1,
                 'h_step_loss': 1,
+                # new section
+                'model_lr': 1e-4,
+                'model_weight_decay': 5e-5,
+                'num_model_update': int(10),
+                'model_batch_size': int(1024),
+                # new section end
                 'trans_gan_lr': 1e-4,
                 'trans_model_lr': 1e-4,
                 'reward_model_lr': 1e-5,
@@ -68,7 +74,6 @@ def main(args: argparse.Namespace):
                 'gan_weight_decay': 5e-5,
                 'num_reg_updates': int(10),
                 'num_gan_updates': int(10),
-                'model_batch_size': int(256)
                 },
             'disc_agent': {
                 'hidden_size': [256, 256],
@@ -76,7 +81,7 @@ def main(args: argparse.Namespace):
                 },
             'disc_algo': {
                 'num_updates': int(1),
-                'disc_batch_size': int(256)
+                'disc_batch_size': int(512)
                 },
             'minibatch': {
                 'n_steps': int(1e6),

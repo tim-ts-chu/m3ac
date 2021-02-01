@@ -18,9 +18,13 @@ class ModelAlgorithm:
             disc_agent: DiscriminateAgent,
             fake_env: FakeEnv,
             transition_reg_loss_weight: float,
-            transition_gan_loss_weight: float,
             reward_reg_loss_weight: float,
+            gan_loss_weight: float,
             h_step_loss: int,
+            # new section
+            model_lr: float,
+            model_weight_decay: float,
+            num_model_update: int,
             trans_model_lr: float,
             reward_model_lr: float,
             trans_gan_lr: float,
@@ -40,26 +44,34 @@ class ModelAlgorithm:
         self._fake_env = fake_env
 
         self._transition_reg_loss_weight = transition_reg_loss_weight
-        self._transition_gan_loss_weight = transition_gan_loss_weight
         self._reward_reg_loss_weight = reward_reg_loss_weight
+        self._gan_loss_weight = gan_loss_weight
+
+        self._num_model_updates = num_model_update
 
         self._h_step_loss = h_step_loss
         self._num_reg_updates = num_reg_updates
         self._num_gan_updates = num_gan_updates
         self._model_batch_size = model_batch_size
 
-        self._transition_optimizer = torch.optim.Adam(
-                model_agent.transition_params(),
-                lr=trans_model_lr,
-                weight_decay=trans_weight_decay)
-        self._reward_optimizer = torch.optim.Adam(
-                model_agent.reward_params(),
-                lr=reward_model_lr,
-                weight_decay=reward_weight_decay)
-        self._gan_optimizer = torch.optim.Adam(
-                model_agent.transition_params(),
-                lr=trans_gan_lr,
-                weight_decay=gan_weight_decay)
+        params = list(model_agent.transition_params()) + list(model_agent.reward_params())
+        self._optimizer = torch.optim.AdamW(
+                params,
+                lr=model_lr,
+                weight_decay=model_weight_decay)
+
+        # self._transition_optimizer = torch.optim.Adam(
+                # model_agent.transition_params(),
+                # lr=trans_model_lr,
+                # weight_decay=trans_weight_decay)
+        # self._reward_optimizer = torch.optim.Adam(
+                # model_agent.reward_params(),
+                # lr=reward_model_lr,
+                # weight_decay=reward_weight_decay)
+        # self._gan_optimizer = torch.optim.Adam(
+                # model_agent.transition_params(),
+                # lr=trans_gan_lr,
+                # weight_decay=gan_weight_decay)
 
     def optimize_agent(self, step: int) -> Dict:
         optim_info = {}
@@ -68,9 +80,10 @@ class ModelAlgorithm:
         optim_info['GanLoss'] = []
         optim_info['doneLoss'] = []
 
-        for it in range(self._num_reg_updates):
-            self._transition_optimizer.zero_grad()
-            self._reward_optimizer.zero_grad()
+        for it in range(self._num_model_updates):
+            # self._transition_optimizer.zero_grad()
+            # self._reward_optimizer.zero_grad()
+            self._optimizer.zero_grad()
             real_samples = self._real_buffer.sample_sequence(self._model_batch_size, self._h_step_loss, self._device_id)
 
             # fake env will clamp abnormal state
@@ -81,15 +94,15 @@ class ModelAlgorithm:
             optim_info['rewardRegLoss'].append(reward_reg_loss)
 
             # transition_loss = self._transition_reg_loss_weight * transition_reg_loss
-            total_loss = transition_reg_loss + reward_reg_loss
-            total_loss.backward()
-            self._transition_optimizer.step()
-            self._reward_optimizer.step()
+            # total_loss = transition_reg_loss + reward_reg_loss
+            # total_loss.backward()
+            # self._transition_optimizer.step()
+            # self._reward_optimizer.step()
 
-        for it in range(self._num_gan_updates):
-            self._gan_optimizer.zero_grad()
-            real_samples = self._real_buffer.sample_sequence(self._model_batch_size, self._h_step_loss, self._device_id)
-            next_state, reward, done, _ = self._fake_env.step(real_samples['state'][:,0,:], real_samples['action'][:,0,:])
+        #for it in range(self._num_gan_updates):
+            # self._gan_optimizer.zero_grad()
+            # real_samples = self._real_buffer.sample_sequence(self._model_batch_size, self._h_step_loss, self._device_id)
+            # next_state, reward, done, _ = self._fake_env.step(real_samples['state'][:,0,:], real_samples['action'][:,0,:])
             logits, pred = self._disc_agent.discriminate(
                     real_samples['state'][:,0,:],
                     real_samples['action'][:,0,:],
@@ -101,9 +114,12 @@ class ModelAlgorithm:
             gan_loss = F.binary_cross_entropy_with_logits(logits, true_labels)
             optim_info['GanLoss'].append(gan_loss)
 
-            total_loss = self._transition_gan_loss_weight * gan_loss
+            total_loss = self._transition_reg_loss_weight * transition_reg_loss + \
+                    self._reward_reg_loss_weight * reward_reg_loss + \
+                    self._gan_loss_weight * gan_loss
             total_loss.backward()
-            self._gan_optimizer.step()
+            # self._gan_optimizer.step()
+            self._optimizer.step()
 
         return optim_info
 
