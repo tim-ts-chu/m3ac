@@ -22,7 +22,7 @@ def set_buffer_dim(state_dim, action_dim):
 class ReplayBuffer:
     '''
     This is a replay buffer for saving step data of trajecries.
-    All of the data are saved in a preallocated memory space 
+    All of the data are saved in a preallocated memory space
     in a torch.Tensor form. So how large the buffer size can be depends
     on how much memory the machine has.
     '''
@@ -42,7 +42,7 @@ class ReplayBuffer:
         # initialize buffer for each field
         for name in BufferFields.keys():
             field_dim = BufferFields[name]
-            self._buffer[name] = torch.empty(
+            self._buffer[name] = torch.zeros(
                     (self._buffer_size, field_dim),
                     device=self._device,
                     dtype=self._dtype,
@@ -92,15 +92,15 @@ class ReplayBuffer:
         raise RuntimeError(f'this function is deprecated due to support for sequence sampling')
         if kwargs.keys() != BufferFields.keys():
             raise RuntimeError(f'push data into an unexisting field: {kwargs.keys()}!={BufferFields.keys()}')
-        
+
         batch_size, _ = kwargs[list(BufferFields.keys())[0]].shape
 
         if self._buffer_size - self._write_idx >= batch_size:
-            # no need to circling 
+            # no need to circling
             for field in BufferFields.keys():
                 self._buffer[field][self._write_idx:self._write_idx+batch_size, :] = kwargs[field]
 
-            self._write_idx += batch_size 
+            self._write_idx += batch_size
             if self._curr_size < self._buffer_size:
                 self._curr_size += batch_size
         else:
@@ -112,6 +112,16 @@ class ReplayBuffer:
 
             self._write_idx = remain_idx
             self._curr_size = self._buffer_size
+
+    def range_sample(self, batch_size: int, low: int, hight: int, device_id: int=None) -> torch.Tensor:
+        indeces = torch.randint(low, high, (batch_size,))
+        samples = {}
+        for field in BufferFields.keys():
+            if device_id is not None:
+                samples[field] = self._buffer[field][indeces, :].detach().to(device_id)
+            else:
+                samples[field] = self._buffer[field][indeces, :].detach()
+        return samples
 
     def sample(self, batch_size: int, device_id=None, index_only=False) -> torch.Tensor:
         '''

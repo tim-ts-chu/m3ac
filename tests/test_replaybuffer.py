@@ -13,7 +13,7 @@ class TestReplayBuffer(unittest.TestCase):
         self._data_size = 1000
         self._testing_data = []
 
-        set_buffer_dim(5, 3, 1, 1, 1)
+        set_buffer_dim(5, 3)
 
         for i in range(self._data_size):
             sample = {}
@@ -300,6 +300,29 @@ class TestReplayBuffer(unittest.TestCase):
                     break
             else:
                 self.fail('sampled data is not in the complete sequence data')
+
+    def test_pickle_dump_and_load(self):
+        import pickle
+        buffer_dump = ReplayBuffer(self._large_buffer_size)
+
+        for i in range(self._data_size):
+            # Assuem all data are 17 steps sequence
+            if i % 17 == 16:
+                buffer_dump.push(True, **self._testing_data[i])
+            else:
+                buffer_dump.push(False, **self._testing_data[i])
+
+        with open('replay.pkl', 'wb') as fp:
+            pickle.dump(buffer_dump, fp)
+
+        with open('replay.pkl', 'rb') as fp:
+            buffer_load = pickle.load(fp)
+
+        for i in range(self._large_buffer_size):
+            for key in BufferFields.keys():
+                dump_data = buffer_dump._buffer[key]
+                load_data = buffer_load._buffer[key]
+                self.assertTrue(torch.equal(dump_data, load_data))
 
 if __name__ == '__main__':
     unittest.main()
