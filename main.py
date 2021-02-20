@@ -33,8 +33,8 @@ def main(args: argparse.Namespace):
                 # 'id': 'Hopper-v4'
                 # 'id': 'Hopper-v3'
                 # 'id': 'HalfCheetah-v4'
-                'id': 'Walker2d-v4'
-                # 'id': 'Walker2d-v3'
+                # 'id': 'Walker2d-v4'
+                'id': 'Walker2d-v3'
                 # 'id': 'Ant-v4'
                 },
             'replay_buffer': {

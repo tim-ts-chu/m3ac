@@ -117,7 +117,7 @@ class MiniBatchRL:
         self._model_agent = ModelAgent(self.device_id, **params['model_agent'])
         self._disc_agent = DiscriminateAgent(self.device_id, **params['disc_agent'])
 
-        self._fake_env = FakeEnv(self._model_agent)
+        self._fake_env = FakeEnv(params['env']['id'], self._model_agent)
 
         self._model_algo = ModelAlgorithm(self.device_id,
                 self._real_buffer,
