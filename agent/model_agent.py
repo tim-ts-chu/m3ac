@@ -26,6 +26,7 @@ class ModelAgent:
         # output gaussian mean, std
         self._transition_mlp = WorldMlp(
                 BufferFields['state']+BufferFields['action'],
+                # BufferFields['state']*2+BufferFields['action']*2,
                 trans_hidden_size,
                 BufferFields['state']*2,
                 activation=model_activation,
@@ -66,9 +67,38 @@ class ModelAgent:
         self._reward_mlp.train()
         self._done_mlp.train()
 
-    def transition(self, state, action):
+    def set_data_statistics(self, state, action, next_state):
+        # FIXME not use currently
+        self._state_mean = state.mean(dim=0)
+        self._state_std = state.std(dim=0)
+
+        self._action_mean = action.mean(dim=0)
+        self._action_std = action.std(dim=0)
+
+        self._next_state_mean = next_state.mean(dim=0)
+        self._next_state_std = next_state.std(dim=0)
+
+    def preprocess(self, state, action, next_state):
+        # FIXME not use currently
+        normalized_state = (state - self._state_mean) / self._state_std
+        normalized_action = (action - self._action_mean) / self._action_std
+        normalized_next_state = (next_state - self._next_state_mean) / self._next_state_std
+        return normalized_state, normalized_action, normalized_next_state
+
+    def postprocess(self, next_state):
+        # FIXME not use currently
+        post_next_state = next_state * self._next_state_std + self._next_state_mean
+        return post_next_state
+
+    # def transition(self, state, state_add, action, action_add, ret_logvar=False):
+        # out = self._transition_mlp(torch.cat((state, state_add, action, action_add), dim=1))
+    def transition(self, state, action, ret_logvar=False):
         out = self._transition_mlp(torch.cat((state, action), dim=1))
         loc = out[:, :BufferFields['state']]
+
+        if ret_logvar:
+            return out[:, :BufferFields['state']], out[:, BufferFields['state']:]
+
         if self._deterministic:
             return loc
         else:

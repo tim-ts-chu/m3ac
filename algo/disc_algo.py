@@ -40,21 +40,27 @@ class DiscriminateAlgorithm:
         for it in range(self._num_updates):
             real_samples = self._real_buffer.sample(self._disc_batch_size, self._device_id)
 
-            with torch.no_grad():
-                # generate imaginary sample
-                imag_samples = {}
-                next_state, reward, done, info = self._fake_env.step(real_samples['state'], real_samples['action'])
-                imag_samples['state'] = real_samples['state']
-                imag_samples['action'] = real_samples['action']
-                imag_samples['reward'] = real_samples['reward'] # TODO use GT reward or predict reward?
-                imag_samples['done'] = real_samples['done']
-                imag_samples['next_state'] = next_state
+            # with torch.no_grad():
+                # #generate imaginary sample
+                # imag_samples = {}
+                # next_state, reward, done, info = self._fake_env.step(real_samples['state'], real_samples['action'])
+                # imag_samples['state'] = real_samples['state']
+                # imag_samples['action'] = real_samples['action']
+                # imag_samples['reward'] = real_samples['reward'] # TODO use GT reward or predict reward?
+                # imag_samples['done'] = real_samples['done']
+                # imag_samples['next_state'] = next_state
 
+            # samples = {}
+            # for k in BufferFields.keys():
+                # if k == 'end':
+                    # continue
+                # samples[k] = torch.cat((real_samples[k], imag_samples[k]), dim=0)
+
+
+            next_state_diff = self._model_agent.transition(real_samples['state'], torch.rand_like(real_samples['action']) * 2 - 1)
             samples = {}
-            for k in BufferFields.keys():
-                if k == 'end':
-                    continue
-                samples[k] = torch.cat((real_samples[k], imag_samples[k]), dim=0)
+            samples['state'] = torch.cat((real_samples['state'], real_samples['state']), dim=0)
+            samples['next_state_diff'] = torch.cat((real_samples['next_state'] - real_samples['state'], next_state_diff.detach()), dim=0)
 
             # soft labels
             true_labels = torch.full((self._disc_batch_size,), .8) + torch.randn((self._disc_batch_size,))/10.0
@@ -64,10 +70,11 @@ class DiscriminateAlgorithm:
             self._disc_optimizer.zero_grad()
             logits, pred = self._disc_agent.discriminate(
                     samples['state'].detach(),
-                    samples['action'].detach(),
-                    samples['reward'].detach(),
-                    samples['done'].detach(),
-                    samples['next_state'].detach())
+                    # samples['action'].detach(),
+                    # samples['reward'].detach(),
+                    # samples['done'].detach(),
+                    samples['next_state_diff'].detach())
+
             error = (pred-labels).abs().sum()/(2*self._disc_batch_size)
 
             loss = F.binary_cross_entropy_with_logits(logits, labels)

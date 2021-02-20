@@ -14,7 +14,7 @@ class FakeEnv:
         """
         # should handle batch input
         next_s = self._get_obs(s, a)
-        reward = self._get_rewared(s, a, next_s)
+        reward = self._get_rewared(s, a, next_s.detach())
         done = self._get_done(s, a, next_s)
         info = self._get_info(s, a, next_s)
         return next_s, reward, done, info

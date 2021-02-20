@@ -28,9 +28,13 @@ def main(args: argparse.Namespace):
 
     params = {
             'env': {
+                # 'id': 'Reacher-v2',
+                # 'id': 'Pusher-v2',
                 # 'id': 'Hopper-v4'
+                # 'id': 'Hopper-v3'
                 # 'id': 'HalfCheetah-v4'
                 'id': 'Walker2d-v4'
+                # 'id': 'Walker2d-v3'
                 # 'id': 'Ant-v4'
                 },
             'replay_buffer': {
@@ -43,9 +47,9 @@ def main(args: argparse.Namespace):
                 'q_hidden_size': [256, 256]
                 },
             'sac_algo': {
-                'num_updates': int(0),
+                'num_updates': int(10),
                 'real_batch_size': int(0),
-                'imag_batch_size': int(256),
+                'imag_batch_size': int(1024),
                 },
             'model_agent': {
                 'trans_hidden_size': [256, 256, 256, 256],
@@ -53,34 +57,27 @@ def main(args: argparse.Namespace):
                 'model_activation': torch.nn.LeakyReLU,
                 'use_batchnorm': False,
                 'dropout_prob': None,
-                'deterministic': False
+                'deterministic': True
                 },
             'model_algo': {
                 'transition_reg_loss_weight': 1,
                 'reward_reg_loss_weight': 1,
                 'gan_loss_weight': 0.1,
                 'h_step_loss': 1,
-                # new section
-                'model_lr': 1e-4,
-                'model_weight_decay': 5e-5,
-                'num_model_update': int(10),
-                'model_batch_size': int(1024),
-                # new section end
-                'trans_gan_lr': 1e-4,
                 'trans_model_lr': 1e-4,
                 'reward_model_lr': 1e-5,
-                'trans_weight_decay': 5e-5,
-                'reward_weight_decay': 5e-5,
-                'gan_weight_decay': 5e-5,
-                'num_reg_updates': int(10),
-                'num_gan_updates': int(10),
+                'trans_weight_decay': 0,
+                'reward_weight_decay': 0,
+                'num_epoch': int(10),
+                'epoch_data_size': int(1e4),
+                'model_batch_size': int(1024),
                 },
             'disc_agent': {
-                'hidden_size': [256, 256],
-                'activation': torch.nn.ReLU,
+                'hidden_size': [256, 256, 256, 256],
+                'activation': torch.nn.LeakyReLU,
                 },
             'disc_algo': {
-                'num_updates': int(1),
+                'num_updates': int(10),
                 'disc_batch_size': int(512)
                 },
             'minibatch': {
@@ -90,7 +87,9 @@ def main(args: argparse.Namespace):
                 'eval_interval': int(1e4),
                 'eval_n_steps': int(1e3),
                 'eval_max_steps': int(1e3),
-                'dump_video': True
+                'train_start_step': int(1e4),
+                'model_train_interval': int(1),
+                'dump_video': False,
                 },
             'other_info': {   # dumping some information for the record only, not really params
                 'default_device_id': default_device_id,

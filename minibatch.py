@@ -26,6 +26,7 @@ from replay.replay import ReplayBuffer, BufferFields, set_buffer_dim
 from envs.gym import GymEnv
 from envs.fake_env import FakeEnv
 from summary_manager import SummaryManager
+from plotter import Plotter
 
 try:
     import moviepy.editor as mpy
@@ -49,6 +50,8 @@ class MiniBatchRL:
             eval_interval: int,
             eval_n_steps: int,
             eval_max_steps: int,
+            train_start_step: int,
+            model_train_interval: int,
             dump_video: bool):
 
         # reources here are shared cross processes
@@ -60,6 +63,8 @@ class MiniBatchRL:
         self._eval_interval = eval_interval
         self._eval_n_steps = eval_n_steps
         self._eval_max_steps = eval_max_steps
+        self._model_train_interval = model_train_interval
+        self._train_start_step = train_start_step
         self._dump_video = dump_video
 
         self._task_folder = os.path.join(folder_path, task_name)
@@ -198,6 +203,8 @@ class MiniBatchRL:
         process.
         '''
         obs = self._env.reset()
+        prev_obs = obs
+        prev_act = torch.zeros(BufferFields['action'])
         cumulative_reward = 0
         cumulative_discounted_reward = 0
         traj_len = 1
@@ -240,6 +247,8 @@ class MiniBatchRL:
                             seq_end=traj_end,
                             state=obs.detach(),
                             action=action.detach(),
+                            # prev_state=prev_obs.detach(),
+                            # prev_action=prev_act.detach(),
                             reward=r.detach().view(1, -1),
                             done=d.detach().int(),
                             next_state=next_obs.detach(),
@@ -256,27 +265,32 @@ class MiniBatchRL:
                     cumulative_reward = 0
                     cumulative_discounted_reward = 0
                     obs = self._env.reset()
+                    prev_obs = obs
+                    prev_act = torch.zeros(BufferFields['action'])
                 else:
                     traj_len += 1
+                    prev_obs = obs
+                    prev_act = action
                     obs = next_obs
 
-                if self._real_buffer.size < 10000: # late start
-                # if self._real_buffer.size < 1000: # late start
+                if self._real_buffer.size < self._train_start_step: # late start
                    continue # haven't collected enough data yet, skip optimization
                 else:
                     use_init_std = False
 
-                # optimize model
-                optim_info = self._model_algo.optimize_agent(train_step) #FIXME change to model_batch_size?
-                if self._summary_manager: self._summary_manager.update(optim_info)
+                if train_step % self._model_train_interval == 0:
+                    # optimize discriminator
+                    optim_info = self._disc_algo.optimize_agent(train_step)
+                    if self._summary_manager: self._summary_manager.update(optim_info)
 
-                # optimize policy agent
-                optim_info = self._sac_algo.optimize_agent(train_step)
-                if self._summary_manager: self._summary_manager.update(optim_info)
+                    # optimize model
+                    optim_info = self._model_algo.optimize_agent(train_step) #FIXME change to model_batch_size?
+                    if self._summary_manager: self._summary_manager.update(optim_info)
 
-                # optimize discriminator
-                optim_info = self._disc_algo.optimize_agent(train_step)
-                if self._summary_manager: self._summary_manager.update(optim_info)
+                    # optimize policy agent
+                    optim_info = self._sac_algo.optimize_agent(train_step)
+                    if self._summary_manager: self._summary_manager.update(optim_info)
+
 
                 if train_step % self._log_interval == 0:
                     if self._summary_manager:
@@ -293,7 +307,13 @@ class MiniBatchRL:
             traj_len = 0
             cumulative_reward = 0
             obs = self._env.reset()
+            prev_obs = obs
+            prev_act = torch.zeros(BufferFields['action'])
 
+        # pickle_path = os.path.join(self._task_folder, 'ant_replay_2state.pkl')
+        # import pickle
+        # with open(pickle_path, 'wb') as fp:
+            # pickle.dump(self._real_buffer, fp)
         self._logger.info('Training is done!')
 
     @torch.no_grad()
@@ -309,6 +329,8 @@ class MiniBatchRL:
         success_trajs = 0
         cumulative_reward = 0
         cumulative_discounted_reward = 0
+
+        plotter = Plotter(BufferFields['state'])
 
         # model validation
         model_val_steps = 5
@@ -354,6 +376,11 @@ class MiniBatchRL:
                     if val_step in [0, 2, 4]:
                         val_info['transitionError-'+str(val_step+1)].append((val_nobs-pred_nobs).square().sum()/BufferFields['state'])
                         val_info['rewardError-'+str(val_step+1)].append((val_rwd-pred_rwd).square()) # scalar
+
+                        # add plot data point
+                        plotter.add_next_state_dp(val_step, val_nobs, pred_nobs)
+                        plotter.add_reward_dp(val_step, val_rwd, pred_rwd)
+
                     curr_obs = pred_nobs
 
             # check episode termination
@@ -381,6 +408,9 @@ class MiniBatchRL:
         except FileExistsError:
             pass
 
+        # dump plot
+        plotter.dump_plots(folder_path, [0, 2, 4])
+
         # dump video
         if SUPPORT_MOVIEPY and self._dump_video:
             clip = mpy.ImageSequenceClip(movie_images, fps=30)
@@ -389,4 +419,5 @@ class MiniBatchRL:
         # dump model
         #model_path = os.path.join(folder_path, f'model_rank{self._rank}.pth')
         #self._sac_agent.save_model(model_path)
+
 

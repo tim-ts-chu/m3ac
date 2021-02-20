@@ -16,15 +16,18 @@ class DiscriminateAgent:
         self._device_id = device_id
 
         self._disc_mlp = WorldMlp(
-                BufferFields['state'] + BufferFields['action'] + \
-                        BufferFields['done'] + BufferFields['reward'] + BufferFields['next_state'],
+                # BufferFields['state'] + BufferFields['action'] + \
+                        # BufferFields['done'] + BufferFields['reward'] + BufferFields['next_state'],
+                BufferFields['state']*2,
                 hidden_size, 1, activation).to(device_id)
     
     def params(self):
         return self._disc_mlp.parameters()
 
-    def discriminate(self, state, action, reward, done, next_state):
-        x = torch.cat((state, action, reward, done, next_state), dim=1)
+    # def discriminate(self, state, action, reward, done, next_state):
+        # x = torch.cat((state, action, reward, done, next_state), dim=1)
+    def discriminate(self, state, next_state):
+        x = torch.cat((state, next_state), dim=1)
         logits = self._disc_mlp(x)
         pred = logits.clone()
         pred[pred>0] = 1

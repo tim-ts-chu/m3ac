@@ -3,6 +3,8 @@ import torch
 
 # field name and dimension
 BufferFields = {
+        # 'prev_state': None,
+        # 'prev_action': None,
         'state': None,
         'action': None,
         'reward': None,
@@ -12,6 +14,8 @@ BufferFields = {
         }
 
 def set_buffer_dim(state_dim, action_dim):
+    # BufferFields['prev_state'] = state_dim
+    # BufferFields['prev_action'] = action_dim
     BufferFields['state'] = state_dim
     BufferFields['action'] = action_dim
     BufferFields['reward'] = 1
@@ -51,6 +55,10 @@ class ReplayBuffer:
     @property
     def size(self) -> int:
         return self._curr_size
+
+    def to(self, device) -> None:
+        for key in BufferFields.keys():
+            self._buffer[key].to(device)
 
     def push(self, seq_end: bool, **kwargs) -> None:
         '''
@@ -113,7 +121,7 @@ class ReplayBuffer:
             self._write_idx = remain_idx
             self._curr_size = self._buffer_size
 
-    def range_sample(self, batch_size: int, low: int, hight: int, device_id: int=None) -> torch.Tensor:
+    def range_sample(self, batch_size: int, low: int, high: int, device_id: int=None) -> torch.Tensor:
         indeces = torch.randint(low, high, (batch_size,))
         samples = {}
         for field in BufferFields.keys():
